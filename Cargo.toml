@@ -1,0 +1,25 @@
+[package]
+name = "sonar"
+version = "0.0.1"
+edition = "2021"
+description = "Simple data transfer protocol using audio signals"
+authors = ["Yrrrrrf"]
+# documentation = "http://docs.rs/sonar"  # not yet published (or implemented :P)
+license = "MIT"
+exclude = [
+    "resources/*",  # some svg, logs and other resources 
+    "scripts/*"  # some scripts (bash, python) used for testing
+]
+[dependencies]
+# DEV DEPS
+# dev_utils = { path = "../dev_utils/dev_utils/" }  # local crate (dev-utils)
+dev_utils = "0.1.1"  # local crate (dev-utils)
+thiserror = "2.0"  # error handling
+# DATA TRANSFER PROTOCOL dependencies
+cpal = "0.15"  # code for audio input/output
+rustfft = "6"  # FFT (Fast Fourier Transform)
+bytes = { version = "1.9", features = ["serde"] }  # Efficient byte handling
+lazy_static = "1.5.0"  # lazy initialization
+
+[dev-dependencies]
+criterion = "0.5"  # benchmarking
