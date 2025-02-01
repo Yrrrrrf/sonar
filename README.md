@@ -4,6 +4,12 @@
     <!-- <div><small>Audio-Based Data Transfer Protocol</small></div> -->
 </h1>
 
+
+[![GitHub](https://img.shields.io/badge/github-Yrrrrrf%2Fsonar-58A6FF?style=for-the-badge&logo=github)](https://github.com/Yrrrrrf/sonar)
+[![Crates.io](https://img.shields.io/crates/v/sonar.svg?style=for-the-badge&logo=rust)](https://crates.io/crates/sonar)
+[![Docs.rs](https://img.shields.io/badge/docs.rs-sonar-66c2a5?style=for-the-badge&labelColor=555555)](https://docs.rs/sonar)
+
+
 ## Features
 
 - **Air-Gap Data Transfer**: Enable secure data transmission across air-gapped systems using audio signals
@@ -46,8 +52,8 @@
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Yrrrrrf/sonardt.git
-cd sonardt
+git clone https://github.com/Yrrrrrf/sonar.git
+cd sonar
 ```
 
 2. Build the project:
@@ -64,7 +70,7 @@ cargo test
 
 ### Basic Example
 ```rust
-use sonardt::{audio::{AudioDev, capture::AudioCapture, playback::AudioPlayback}, encoding::FSKEncoder};
+use sonar::{audio::{AudioDev, capture::AudioCapture, playback::AudioPlayback}, encoding::FSKEncoder};
 
 // Initialize audio devices
 let capture = AudioCapture::default();
@@ -81,7 +87,7 @@ let (stream, received) = device.listen()?;
 
 ### Signal Monitoring
 ```rust
-use sonardt::audio::signal::SignalMonitor;
+use sonar::audio::signal::SignalMonitor;
 
 let mut monitor = SignalMonitor::new(48, Box::new(FSKEncoder::default()));
 monitor.print_header();

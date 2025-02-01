@@ -1,13 +1,15 @@
 [package]
 name = "sonar"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 description = "Simple data transfer protocol using audio signals"
 authors = ["Yrrrrrf"]
-# documentation = "http://docs.rs/sonar"  # not yet published (or implemented :P)
+documentation = "http://docs.rs/sonar"
+repository = "https://github.com/Yrrrrrf/sonar"
 license = "MIT"
 exclude = [
-    "resources/*",  # some svg, logs and other resources 
+    "resources/temp/",  # some svg, logs and other resources 
+    "resources/docs/",  # some svg, logs and other resources 
     "scripts/*"  # some scripts (bash, python) used for testing
 ]
 [dependencies]
