@@ -70,11 +70,11 @@ cargo test
 
 ### Basic Example
 ```rust
-use sonar::{audio::{AudioDev, capture::AudioCapture, playback::AudioPlayback}, encoding::FSKEncoder};
+use sonar::{audio::{AudioDev, capture::AudioCapture, playback::AudioPlayback}, encoding::FSK};
 
 // Initialize audio devices
 let capture = AudioCapture::default();
-let playback = AudioPlayback::new(Box::new(FSKEncoder::default()))?;
+let playback = AudioPlayback::new(Box::new(FSK::default()))?;
 let device = AudioDev::new(capture, playback)?;
 
 // Send data
@@ -89,7 +89,7 @@ let (stream, received) = device.listen()?;
 ```rust
 use sonar::audio::signal::SignalMonitor;
 
-let mut monitor = SignalMonitor::new(48, Box::new(FSKEncoder::default()));
+let mut monitor = SignalMonitor::new(48, Box::new(FSK::default()));
 monitor.print_header();
 monitor.process_samples(&samples);
 ```

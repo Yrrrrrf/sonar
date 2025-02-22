@@ -4,13 +4,11 @@ use std::default;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 
-use crate::encoding::bits_to_bytes;
-use crate::proto::Frame;
-
+use crate::codec::bits_to_byte;
 
 pub struct AudioCapture {
-    device: cpal::Device,      // The physical input device (microphone)
-    config: cpal::StreamConfig, // Device configuration
+    device: cpal::Device,              // The physical input device (microphone)
+    config: cpal::StreamConfig,        // Device configuration
     pub samples: Arc<Mutex<Vec<f32>>>, // Buffer for captured audio data
 }
 
@@ -18,8 +16,9 @@ impl Default for AudioCapture {
     fn default() -> Self {
         Self::new_with_device(match cpal::default_host().default_input_device() {
             Some(device) => device,
-            None => panic!("No input device available")
-        }).unwrap()
+            None => panic!("No input device available"),
+        })
+        .unwrap()
     }
 }
 
@@ -36,12 +35,20 @@ impl AudioCapture {
     /// Creates a new AudioCapture with a specific input device
     pub fn new_with_device(device: cpal::Device) -> Result<Self, Box<dyn Error>> {
         let config = device.default_input_config()?.config();
-        Ok(Self { device, config, samples: Arc::new(Mutex::new(Vec::new()))})
+        Ok(Self {
+            device,
+            config,
+            samples: Arc::new(Mutex::new(Vec::new())),
+        })
     }
-    
+
     pub fn new(device: cpal::Device, config: cpal::StreamConfig) -> Self {
         let samples = Arc::default();
-        Self { device, config, samples }
+        Self {
+            device,
+            config,
+            samples,
+        }
     }
 
     /// Start listening for audio input

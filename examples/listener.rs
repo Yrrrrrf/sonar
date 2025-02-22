@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 use dev_utils::{app_dt, dlog::*, format::*, info};
-use sonar::{audio::{capture::AudioCapture, signal::SignalMonitor}, encoding::FSKEncoder};
-
+use sonar::{
+    audio::{capture::AudioCapture, signal::SignalMonitor},
+    codec::FSK,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     app_dt!(file!());
@@ -11,13 +13,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup decoder with default FSK settings
     let capture = AudioCapture::default();
 
-    info!("script::new({})", "AUDIO LISTENER".color(WHITE).style(Style::Bold));
-    info!("Successfully started {} at {}", 
-        "listening".color(GREEN), 
+    info!(
+        "script::new({})",
+        "AUDIO LISTENER".color(WHITE).style(Style::Bold)
+    );
+    info!(
+        "Successfully started {} at {}",
+        "listening".color(GREEN),
         dev_utils::datetime::DateTime::now().time
     );
     // Initialize signal monitor
-    let mut monitor = SignalMonitor::new(48, Box::new(FSKEncoder::default()));
+    let mut monitor = SignalMonitor::new(48, Box::new(FSK::default()));
     monitor.print_header();
 
     let _ = capture.start_listening()?;

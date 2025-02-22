@@ -1,13 +1,8 @@
-#![allow(unused)]  // silence unused warnings while developing
+#![allow(unused)] // silence unused warnings while developing
 
 use std::time::Duration;
 
-use dev_utils::{
-    app_dt, error, warn, info, debug, trace,
-    dlog::*,
-    format::*,
-};
-
+use dev_utils::{app_dt, debug, dlog::*, error, format::*, info, trace, warn};
 
 // import some::*; from parent dir
 

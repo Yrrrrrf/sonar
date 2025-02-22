@@ -1,7 +1,10 @@
-use std::time::{Duration, Instant};
 use dev_utils::{app_dt, dlog::*, format::*};
+use std::time::{Duration, Instant};
 
-use crate::{audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color}, encoding::Encoder};
+use crate::{
+    audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color},
+    codec::{Codec, CodecTrait},
+};
 
 pub struct SignalMonitor {
     display_width: usize,
@@ -9,11 +12,11 @@ pub struct SignalMonitor {
     samples_count: usize,
     last_peak_pos: Option<usize>,
     start_time: Instant,
-    decoder: Box<dyn Encoder>,
+    decoder: Box<dyn CodecTrait>,
 }
 
 impl SignalMonitor {
-    pub fn new(display_width: usize, decoder: Box<dyn Encoder>) -> Self {
+    pub fn new(display_width: usize, decoder: Box<dyn CodecTrait>) -> Self {
         Self {
             display_width,
             peak_value: 0.0,
@@ -26,9 +29,14 @@ impl SignalMonitor {
 
     pub fn print_header(&self) {
         print!("Signal Strength: ");
-        println!("│{}│\n", 
+        println!(
+            "│{}│\n",
             (0..self.display_width)
-                .map(|i| "█".color(interpolate_color(i as f32 / self.display_width as f32, 0.0, 1.0)))
+                .map(|i| "█".color(interpolate_color(
+                    i as f32 / self.display_width as f32,
+                    0.0,
+                    1.0
+                )))
                 .collect::<String>()
         );
     }
@@ -45,10 +53,15 @@ impl SignalMonitor {
         }
 
         // Update signal visualization
-        if let Some(max_sample) = samples.iter().map(|s| s.abs()).max_by(|a, b| a.partial_cmp(b).unwrap()) {
+        if let Some(max_sample) = samples
+            .iter()
+            .map(|s| s.abs())
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+        {
             if max_sample > self.peak_value {
                 self.peak_value = max_sample;
-                self.last_peak_pos = Some((self.peak_value * self.display_width as f32 * 2.0) as usize);
+                self.last_peak_pos =
+                    Some((self.peak_value * self.display_width as f32 * 2.0) as usize);
             }
 
             if max_sample > 0.00001 {
@@ -73,17 +86,17 @@ impl SignalMonitor {
         print!("\x1B[2K"); // Clear line
         print!("\x1B[1G"); // Move to start of line
 
-        let elapsed = format_time(self.start_time.elapsed());
-        let meter = create_gradient_meter(max_sample, self.display_width, self.last_peak_pos);
-        let value = format_signal_value(max_sample);
-        let peak = format_signal_value(self.peak_value);
-        
-        println!("{} {} {} {} │ Peak: {}", 
-            elapsed,
-            "●".color(if self.samples_count % 2 == 0 { GREEN } else { YELLOW }),
-            meter,
-            value,
-            peak
+        println!(
+            "{} {} {} {} │ Peak: {}",
+            format_time(self.start_time.elapsed()),
+            "●".color(if self.samples_count % 2 == 0 {
+                GREEN
+            } else {
+                YELLOW
+            }),
+            create_gradient_meter(max_sample, self.display_width, self.last_peak_pos),
+            format_signal_value(max_sample),
+            format_signal_value(self.peak_value)
         );
     }
 }

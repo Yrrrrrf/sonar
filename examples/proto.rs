@@ -1,59 +1,82 @@
-#![allow(unused)]  // silence unused warnings while developing
+#![allow(unused)] // silence unused warnings while developing
 
-use std::{default, error::Error, thread, time::Duration};
 use cpal::traits::StreamTrait;
-use cpal::{traits::{DeviceTrait, HostTrait}, Device};
-use dev_utils::{
-    app_dt, debug, dlog::*, error, format::*, info, read_input, trace, warn
+use cpal::{
+    traits::{DeviceTrait, HostTrait},
+    Device,
 };
-use sonar::encoding::Encoder;
+use dev_utils::{app_dt, debug, dlog::{self, *}, error, format::*, info, read_input, trace, warn};
+use sonar::codec::CodecTrait;
 use sonar::{
-    audio::{
-        capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, select_device
-    }, encoding::FSKEncoder, proto::Frame 
-};    
-
+    audio::{capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, select_device},
+    codec::FSK,
+};
+use core::error;
+use std::{default, error::Error, thread, time::Duration};
 
 fn get_capture_device() -> AudioCapture {
     AudioCapture::new_with_device(select_device(true).unwrap()).unwrap()
 }
 
-fn get_playback_device(encoder: Box<dyn Encoder>) -> AudioPlayback {
+fn get_playback_device(encoder: Box<dyn CodecTrait>) -> AudioPlayback {
     AudioPlayback::new_with_device(select_device(false).unwrap(), encoder).unwrap()
 }
-fn get_audio_dev(
-    default_devices: bool
-) -> Result<(AudioCapture, AudioPlayback), Box<dyn Error>> {
+fn get_audio_dev(default_devices: bool) -> Result<(AudioCapture, AudioPlayback), Box<dyn Error>> {
     Ok(match default_devices {
-        true => {info!("Using default devices");
-            (AudioCapture::default(),AudioPlayback::new(Box::new(FSKEncoder::default()))?)
-        },
-        false => {info!("Using selected devices");
-            (get_capture_device(), get_playback_device(Box::new(FSKEncoder::default())))
+        true => {
+            info!("Using default devices");
+            (
+                AudioCapture::default(),
+                AudioPlayback::new(Box::new(FSK::default()))?,
+            )
+        }
+        false => {
+            info!("Using selected devices");
+            (
+                get_capture_device(),
+                get_playback_device(Box::new(FSK::default())),
+            )
         }
     })
 }
 
 fn start_sender(dev: &AudioDev) -> Result<(), Box<dyn Error>> {
-    println!("\n{}", "Ready to send messages! Type 'q' to quit".color(YELLOW).style(Style::Dim));
+    println!(
+        "\n{}",
+        "Ready to send messages! Type 'q' to quit"
+            .color(YELLOW)
+            .style(Style::Dim)
+    );
 
     loop {
         let input = read_input::<String>(Some(&"Send: ".style(Style::Bold)))?;
-        if input.trim() == "q" { break; }
+        if input.trim() == "q" {
+            break;
+        }
 
         // Send data and get stream
-        let stream = dev.send(input.as_bytes())?;
-        
+        // let stream = dev.send(input.as_bytes())?;
+
         // Wait for transmission and cleanup
+        error!("Wait for transmission and cleanup");
+        todo!("Wait for transmission and cleanup");
+        todo!("Wait for transmission and cleanup");
+        todo!("Wait for transmission and cleanup");
+
         thread::sleep(Duration::from_millis(100));
-        stream.pause()?;
+        // stream.pause()?;
     }
     Ok(())
 }
 
 fn start_listener(dev: &AudioDev) -> Result<(), Box<dyn Error>> {
-    println!("\n{}", "Starting listener mode... Press Ctrl+C to quit".color(YELLOW).style(Style::Dim));
-    
+    println!(
+        "\n{}",
+        "Starting listener mode... Press Ctrl+C to quit"
+            .color(YELLOW)
+            .style(Style::Dim)
+    );
+
     // Start monitoring for incoming frames
     let stream = dev.monitor()?;
 
@@ -80,7 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("\n{}", "Select mode:".color(BLUE).style(Style::Bold));
     println!("1. Sender");
     println!("2. Listener");
-    
+
     loop {
         let mode = read_input::<String>(Some("Choose mode (1/2): "))?;
         match mode.trim() {

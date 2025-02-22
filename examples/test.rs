@@ -1,29 +1,24 @@
 #![allow(unused)]
 
 use std::error::Error;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 use cpal::traits::StreamTrait;
-use dev_utils::{app_dt, error, warn, info, debug, trace, dlog::*};
+use dev_utils::{app_dt, debug, dlog::*, error, info, trace, warn};
 
-use proto::Frame;
-use sonar::*;
-use sonar::encoding::Encoder;
-use sonar::encoding::FSKEncoder;
 use sonar::audio::{
-    capture::AudioCapture,
-    playback::AudioPlayback,
-    dev::AudioDev,
-    signal::SignalMonitor,
+    capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, signal::SignalMonitor,
 };
+use sonar::codec::CodecTrait;
+use sonar::codec::FSK;
+use sonar::*;
 
 const TEST_DATA: &[u8] = &[
-    0xAA, 0xBB, 0xCC, 0xDD,  // Test pattern
-    b'H', b'e', b'l', b'l', b'o',  // ASCII text
-    0x01, 0x02, 0x03, 0x04   // Binary sequence
+    0xAA, 0xBB, 0xCC, 0xDD, // Test pattern
+    b'H', b'e', b'l', b'l', b'o', // ASCII text
+    0x01, 0x02, 0x03, 0x04, // Binary sequence
 ];
-
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Run tests
@@ -34,21 +29,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-
 // fn test_audio_loopback() -> Result<(), Box<dyn Error>> {
-//     // Create FSK encoder with default settings
-//     let encoder = Box::new(FSKEncoder::default());
-//     let encoder_clone = Box::new(FSKEncoder::default());
+//     // Create FSK CodecTrait with default settings
+//     let CodecTrait = Box::new(FSK::default());
+//     let CodecTrait_clone = Box::new(FSK::default());
 
 //     // Initialize audio devices
 //     let capture = AudioCapture::new()?;
-//     let playback = AudioPlayback::new(encoder_clone)?;
+//     let playback = AudioPlayback::new(CodecTrait_clone)?;
 
 //     // Create router
-//     let router = AudioRouter::new(capture, playback, encoder)?;
+//     let router = AudioRouter::new(capture, playback, CodecTrait)?;
 
 //     // Create signal monitor
-//     let mut monitor = SignalMonitor::new(50, Box::new(FSKEncoder::default()));
+//     let mut monitor = SignalMonitor::new(50, Box::new(FSK::default()));
 //     monitor.print_header();
 
 //     // Start the test sequence
@@ -57,7 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 //     // Send data through playback
 //     let play_stream = router.send(TEST_DATA)?;
-    
+
 //     // Give some time for the signal to stabilize
 //     thread::sleep(Duration::from_millis(100));
 
@@ -66,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 //     // Monitor the signal for a short duration
 //     for _ in 0..10 {
-//         if let Some(decoded) = monitor.process_samples(&router.encoder.encode(TEST_DATA)?) {
+//         if let Some(decoded) = monitor.process_samples(&router.CodecTrait.encode(TEST_DATA)?) {
 //             // println!("Decoded data: {:?}", decoded);
 //             assert_eq!(decoded, TEST_DATA.to_vec(), "Decoded data doesn't match sent data");
 //         }
@@ -85,27 +79,27 @@ fn main() -> Result<(), Box<dyn Error>> {
 // }
 
 fn test_signal_strength() -> Result<(), Box<dyn Error>> {
-    let playback = AudioPlayback::new(Box::new(FSKEncoder::default()))?;
-    let mut monitor = SignalMonitor::new(50, Box::new(FSKEncoder::default()));
+    let playback = AudioPlayback::new(Box::new(FSK::default()))?;
+    let mut monitor = SignalMonitor::new(50, Box::new(FSK::default()));
 
     // Print monitor header
     monitor.print_header();
 
     // Test different signal strengths
     let test_signals = [
-        (&[0x00], "0000 0000"),  //   0
-        (&[0x01], "0000 0001"),  //   1
-        (&[0x03], "0000 0011"),  //   3
-        (&[0x07], "0000 0111"),  //   7
-        (&[0x0F], "0000 1111"),  //  15
-        (&[0x1F], "0001 1111"),  //  31
-        (&[0x3F], "0011 1111"),  //  63
-        (&[0x7F], "0111 1111"),  // 127
-        (&[0xFF], "1111 1111"),  // 255
+        (&[0x00], "0000 0000"), //   0
+        (&[0x01], "0000 0001"), //   1
+        (&[0x03], "0000 0011"), //   3
+        (&[0x07], "0000 0111"), //   7
+        (&[0x0F], "0000 1111"), //  15
+        (&[0x1F], "0001 1111"), //  31
+        (&[0x3F], "0011 1111"), //  63
+        (&[0x7F], "0111 1111"), // 127
+        (&[0xFF], "1111 1111"), // 255
     ];
     for (signal, description) in test_signals.iter() {
         println!("\nTesting {} ...", description);
-        
+
         // let s = cast signal to &[u8]
         let s = signal.as_ref();
         // Send signal
@@ -113,7 +107,7 @@ fn test_signal_strength() -> Result<(), Box<dyn Error>> {
         // Monitor signal strength
         let samples = playback.encoder.encode(s)?;
         monitor.process_samples(&samples);
-        
+
         thread::sleep(Duration::from_millis(250));
         stream.pause()?;
     }
@@ -129,11 +123,14 @@ fn test_fsk_configs() -> Result<(), Box<dyn Error>> {
     ];
 
     for (freq_0, freq_1, description) in configs.iter() {
-        println!("\nTesting {} (f0={}, f1={})...", description, freq_0, freq_1);
+        println!(
+            "\nTesting {} (f0={}, f1={})...",
+            description, freq_0, freq_1
+        );
 
-        let encoder = Box::new(FSKEncoder::new(48000, *freq_0, *freq_1, 480));
-        let playback = AudioPlayback::new(encoder)?;
-        
+        let CodecTrait = Box::new(FSK::new(48000, *freq_0, *freq_1, 480));
+        let playback = AudioPlayback::new(CodecTrait)?;
+
         // Send test signal
         let stream = playback.transmit(TEST_DATA)?;
         thread::sleep(Duration::from_millis(500));
@@ -143,9 +140,6 @@ fn test_fsk_configs() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-
-
-
 // // ? Some(test)
 
 // fn test_frame_operations() {
@@ -154,13 +148,13 @@ fn test_fsk_configs() -> Result<(), Box<dyn Error>> {
 //     // Test frame creation
 //     let test_data = b"Test Frame Data";
 //     let frame = Frame::new(1, test_data.to_vec());
-    
+
 //     debug!("Created frame with sequence {}", frame.sequence);
-    
+
 //     // Test frame serialization
 //     let frame_bytes = frame.to_bytes();
 //     debug!("Frame serialized to {} bytes", frame_bytes.len());
-    
+
 //     // Test frame deserialization
 //     match Frame::from_bytes(&frame_bytes) {
 //         Ok(decoded_frame) => {
@@ -177,10 +171,10 @@ fn test_fsk_configs() -> Result<(), Box<dyn Error>> {
 fn test_fsk_codec() {
     info!("Testing FSK codec");
 
-    let fsk = FSKEncoder::new(48000, 1200.0, 2400.0, 480);
+    let fsk = FSK::new(48000, 1200.0, 2400.0, 480);
 
     let data = b"Hello, World!";
-    
+
     match fsk.encode(data) {
         Ok(encoded) => {
             debug!("Data encoded: {} samples", encoded.len());
@@ -201,16 +195,16 @@ fn test_fsk_codec() {
     }
 }
 
-fn test_encoder() {
-    use sonar::encoding::{FSKEncoder, Encoder};
-    
+fn test_CodecTrait() {
+    use sonar::codec::{CodecTrait, FSK};
+
     info!("Main tester");
 
-    let fsk = FSKEncoder::new(
-        48000,    // 48kHz sample rate
-        1200.0,   // 1200 Hz for bit 0
-        2400.0,   // 2400 Hz for bit 1
-        480,      // 480 samples per bit (100 bps)
+    let fsk = FSK::new(
+        48000,  // 48kHz sample rate
+        1200.0, // 1200 Hz for bit 0
+        2400.0, // 2400 Hz for bit 1
+        480,    // 480 samples per bit (100 bps)
     );
 
     // Encoding
@@ -218,18 +212,28 @@ fn test_encoder() {
     // let encoded = fsk.encode(data)?;
     let encoded = match fsk.encode(data) {
         Ok(encoded) => encoded,
-        Err(e) => {error!("Error: {}", e); return;}
+        Err(e) => {
+            error!("Error: {}", e);
+            return;
+        }
     };
-    
+
     // Decoding
     // let decoded = fsk.decode(&encoded)?;
     let decoded = match fsk.decode(&encoded) {
         Ok(decoded) => decoded,
-        Err(e) => {error!("Error: {}", e); return;}
+        Err(e) => {
+            error!("Error: {}", e);
+            return;
+        }
     };
 
     // Compare original and decoded data
     println!("Original data: {:?}", data);
     println!("Decoded data: {:?}", decoded);
-    assert_eq!(data.to_vec(), decoded, "Decoded data should match original data");
+    assert_eq!(
+        data.to_vec(),
+        decoded,
+        "Decoded data should match original data"
+    );
 }
