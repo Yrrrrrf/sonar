@@ -1,10 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::StreamConfig;
-use std::default;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 
-use crate::codec::bits_to_byte;
 
 pub struct AudioCapture {
     device: cpal::Device,              // The physical input device (microphone)

@@ -1,5 +1,5 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use std::{error::Error, fmt::write, sync::Arc};
+use std::{error::Error, sync::Arc};
 
 use crate::codec::CodecTrait;
 

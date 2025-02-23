@@ -1,13 +1,4 @@
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use dev_utils::{app_dt, debug, dlog::*, error, format::*, info, trace, warn};
-use std::error::Error;
-
-// Constants for frame structure
-const SYNC_MARKER: u32 = 0xAAAAAAAA;
-const END_MARKER: u16 = 0xFFFF;
-const HEADER_SIZE: usize = 9; // 4B sync + 1B version + 2B length + 1B sequence + 1B flags
-const TRAILER_SIZE: usize = 8; // 2B CRC + 4B ECC + 2B end marker
-const MAX_PAYLOAD_SIZE: usize = 1024;
+// * Common
 
 // Frame flags
 const FLAG_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message
@@ -15,164 +6,132 @@ const FLAG_PRIORITY: u8 = 0x02; // High priority frame
 const FLAG_CONTROL: u8 = 0x04; // Control frame (not data)
 const FLAG_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
 
-#[derive(Debug, Clone)]
+
+macro_rules! define_addresses {
+    ($($(#[$meta:meta])* $name:ident: $inner:ty),* $(,)?) => {
+        $(
+            $(#[$meta])*
+            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+            pub struct $name($inner);
+        )*
+    };
+}
+
+// Using the macro to define multiple address types in a single call.
+define_addresses!(
+    /// Represents a MAC address.
+    MacAddress: [u8; 6],
+    /// Represents an IPv4 address.
+    Ipv4Address: u32,
+    /// Represents an IPv6 address.
+    Ipv6Address: u128,
+    /// Represents a PORT address.
+    PortAddress: u16,
+);
+
+/// A generic container for a pair of addresses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddressPair<A> {
+    pub src: A,
+    pub dst: A,
+}
+// New generic Header struct to handle address pairs at any layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Header<A> {pub addresses: AddressPair<A>,}
+impl Header<MacAddress> {
+    pub fn new(src: MacAddress, dst: MacAddress) -> Self {
+        Self { addresses: AddressPair { src, dst } }
+    }
+}
+
+
+// * Transport Layer (+mac)
+#[derive(Debug)]
+pub struct Segment {
+    pub header: Header<PortAddress>,
+    pub payload: Vec<u8>,
+}
+
+impl Segment {
+    pub fn new(header: Header<PortAddress>, payload: Vec<u8>) -> Self {
+        Self { header, payload }
+    }
+}
+
+
+// * Network Layer (+ip)
+#[derive(Debug)]
+pub struct Packet {
+    pub header: Header<Ipv4Address>, // IP header with source and destination addresses.
+    pub payload: Segment,            // Transport layer segment.
+}
+
+impl Packet {
+    pub fn new(header: Header<Ipv4Address>, payload: Segment) -> Self {
+        Self { header, payload }
+    }
+    
+    pub fn validate(&self) -> bool {unimplemented!()}
+}
+
+
+// * Data Link Layer (+ip)
+/// Enum representing the frame types, with frame-specific data embedded.
+#[derive(Debug, Clone, Copy)]
+pub enum FrameKind {
+    BitOriented { flag: u8 },
+    BySync { sync: u8 },
+    DDCMP { control: u8 },
+    AsyncPPP { start_delim: u8, end_delim: u8 },
+}
+
+impl Default for FrameKind {
+    fn default() -> Self {FrameKind::BitOriented { flag: 0b01111110 }}
+    // fn default() -> Self {FrameKind::DDCMP { control: 0 }}
+    // fn default() -> Self {FrameKind::AsyncPPP { start_delim: 0b01111110, end_delim: 0b01111110 }}
+}
+
+/// Represents a frame in the data link layer.
+#[derive(Debug)]
 pub struct Frame {
-    // ? Header fields
-    version: u8,  // ? Protocol version
-    sequence: u8, // ? Frame sequence number
-    flags: u8,    // ? Frame
-    // * Data
-    payload: Bytes, // * Frame payload (the actual data)
-    // ^ Trailer fields
-    crc: u16,     // ^ CRC16 checksum
-    ecc: [u8; 4], // ^ Reed-Solomon ECC
+    pub header: Header<MacAddress>,
+    pub kind: FrameKind,
+    pub network_pdu: Vec<Packet>,
 }
 
 impl Frame {
-    /// Creates a new frame with given payload and sequence number
-    pub fn new(payload: &[u8], sequence: u8) -> Result<Self, Box<dyn Error>> {
-        if payload.len() > MAX_PAYLOAD_SIZE {
-            return Err("Payload exceeds maximum size".into());
+    pub fn new(
+        frame_header: Header<MacAddress>,
+        network_header: Header<Ipv4Address>,
+        transport_header: Header<PortAddress>,
+        data: Vec<u8>,
+        kind: Option<FrameKind>,
+    ) -> Self {
+        // Create the transport layer segment and network layer packet.
+        let segment = Segment::new(transport_header, data);
+        let packet = Packet::new(network_header, segment);
+        let network_pdus = vec![packet];
+
+        Self {
+            header: frame_header,
+            network_pdu: network_pdus,
+            kind: kind.unwrap_or_default(), // Defaults to DDCMP if not provided.
         }
-
-        let mut frame = Frame {
-            version: 1, // Current protocol version
-            sequence,
-            flags: 0, // Default flags
-            payload: Bytes::copy_from_slice(payload),
-            crc: 0,      // Will be calculated during encoding
-            ecc: [0; 4], // Will be calculated during encoding
-        };
-
-        frame.crc = frame.calculate_crc();
-        frame.calculate_ecc();
-
-        Ok(frame)
     }
 
-    pub fn serialize(&self) -> BytesMut {
-        let mut buffer = BytesMut::with_capacity(HEADER_SIZE + self.payload.len() + TRAILER_SIZE);
+    pub fn simple_frame(
+        src: MacAddress,
+        dst: MacAddress,
+        data: Vec<u8>,
+    ) -> Self {
 
-        // Write header
-        buffer.put_u32(SYNC_MARKER);
-        buffer.put_u8(self.version);
-        buffer.put_u16(self.payload.len() as u16);
-        buffer.put_u8(self.sequence);
-        buffer.put_u8(self.flags);
-
-        // Write payload
-        buffer.extend_from_slice(&self.payload);
-
-        // Write trailer
-        buffer.put_u16(self.crc);
-        buffer.extend_from_slice(&self.ecc);
-        buffer.put_u16(END_MARKER);
-
-        buffer
-    }
-
-    pub fn deserialize(mut buffer: Bytes) -> Result<Option<Self>, Box<dyn Error>> {
-        // Check minimum size
-        if buffer.len() < HEADER_SIZE + TRAILER_SIZE {
-            return Ok(None); // Not enough data yet
+        // todo: Impl this to be able to generate a simple frame...
+        // todo: Later on then, improve the code to be able to generate a frame with multiple packets.
+        Self {
+            header: Header::new(src, dst),
+            network_pdu: vec![],
+            kind: FrameKind::default(),
         }
 
-        // Look for sync marker
-        let sync = buffer.get_u32();
-
-        match sync != SYNC_MARKER {
-            true => {
-                info!("{}", "Invalid sync marker detected!".color(RED));
-                return Ok(None);
-            }
-            false => info!("{}", "Valid sync marker found!".color(GREEN)),
-        }
-
-        // Read header fields
-        let version = buffer.get_u8();
-        let payload_len = buffer.get_u16() as usize;
-        let sequence = buffer.get_u8();
-        let flags = buffer.get_u8();
-
-        // Validate total frame size
-        if buffer.len() < payload_len + TRAILER_SIZE {
-            return Ok(None); // Incomplete frame
-        }
-
-        // Extract payload
-        let payload = buffer.slice(..payload_len);
-        buffer.advance(payload_len);
-
-        // Read trailer
-        let crc = buffer.get_u16();
-        let mut ecc = [0u8; 4];
-        buffer.copy_to_slice(&mut ecc);
-        let end_marker = buffer.get_u16();
-
-        // Validate end marker
-        if end_marker != END_MARKER {
-            info!("{}", "Invalid end marker detected!".color(RED));
-            return Ok(None);
-        } else {
-            info!("{}", "Valid end marker found!".color(GREEN));
-        }
-
-        let frame = Frame {
-            version,
-            sequence,
-            flags,
-            payload,
-            crc,
-            ecc,
-        };
-
-        // Verify CRC
-        if frame.calculate_crc() != crc {
-            return Err("CRC mismatch".into());
-        }
-
-        Ok(Some(frame))
-    }
-
-    // TODO: Implement proper CRC16 calculation
-    fn calculate_crc(&self) -> u16 {
-        let mut sum: u16 = 0;
-        sum = sum.wrapping_add(self.version as u16);
-        sum = sum.wrapping_add(self.sequence as u16);
-        sum = sum.wrapping_add(self.flags as u16);
-        for byte in self.payload.iter() {
-            sum = sum.wrapping_add(*byte as u16);
-        }
-        sum
-    }
-
-    // TODO: Implement proper Reed-Solomon ECC
-    fn calculate_ecc(&mut self) {
-        self.ecc = [0xAA, 0xBB, 0xCC, 0xDD];
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_frame_creation() {}
-
-    #[test]
-    fn test_frame_encoding_decoding() {
-        let payload = b"Test message";
-        let original_frame = Frame::new(payload, 1).unwrap();
-
-        let frame_serial = original_frame.serialize();
-        let frame_deser = Frame::deserialize(frame_serial.freeze()).unwrap().unwrap();
-
-        // Compare
-    }
-
-    #[test]
-    fn test_max_payload_size() {
-        let payload = vec![0u8; MAX_PAYLOAD_SIZE + 1];
-        assert!(Frame::new(&payload, 1).is_err());
     }
 }

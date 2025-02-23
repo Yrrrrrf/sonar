@@ -128,8 +128,8 @@ fn test_fsk_configs() -> Result<(), Box<dyn Error>> {
             description, freq_0, freq_1
         );
 
-        let CodecTrait = Box::new(FSK::new(48000, *freq_0, *freq_1, 480));
-        let playback = AudioPlayback::new(CodecTrait)?;
+        let codec = Box::new(FSK::new(48000, *freq_0, *freq_1, 480));
+        let playback = AudioPlayback::new(codec)?;
 
         // Send test signal
         let stream = playback.transmit(TEST_DATA)?;
@@ -195,7 +195,7 @@ fn test_fsk_codec() {
     }
 }
 
-fn test_CodecTrait() {
+fn test_codec() {
     use sonar::codec::{CodecTrait, FSK};
 
     info!("Main tester");

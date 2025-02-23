@@ -1,9 +1,9 @@
 use dev_utils::{app_dt, dlog::*, format::*};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::{
     audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color},
-    codec::{Codec, CodecTrait},
+    codec::CodecTrait,
 };
 
 pub struct SignalMonitor {

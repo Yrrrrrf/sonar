@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::f32::consts::PI;
 
-use super::CodecTrait;
+use super::{CodecTrait, SAMPLE_RATE};
 
 // FSK (Frequency-Shift Keying) encoder implementation
 #[derive(Debug, PartialEq)]
@@ -14,7 +14,7 @@ pub struct FSK {
 
 impl Default for FSK {
     fn default() -> Self {
-        Self::new(48_000, 1_200.0, 2_400.0, 480)
+        Self::new( SAMPLE_RATE, 1_200.0, 2_400.0, SAMPLE_RATE / 1_200 )
     }
 }
 
@@ -29,7 +29,7 @@ impl FSK {
     }
 
     // Helper method to generate a sine wave for a given frequency and number of samples
-    fn generate_sine_wave(&self, frequency: f32, num_samples: u32) -> Vec<f32> {
+    fn gen_wave(&self, frequency: f32, num_samples: u32) -> Vec<f32> {
         let sample_period = 1.0 / self.sample_rate as f32;
         (0..num_samples)
             .map(|i| (2.0 * PI * frequency * (i as f32 * sample_period)).sin())
@@ -37,7 +37,7 @@ impl FSK {
     }
 
     // Goertzel algorithm for frequency detection
-    fn goertzel_energy(&self, samples: &[f32], target_freq: f32) -> f32 {
+    fn correlate(&self, samples: &[f32], target_freq: f32) -> f32 {
         let omega = 2.0 * PI * target_freq / self.sample_rate as f32;
         let cos_omega = omega.cos();
         let sin_omega = omega.sin();
@@ -58,7 +58,6 @@ impl FSK {
 
         real * real + imag * imag
     }
-
 }
 
 impl CodecTrait for FSK {
@@ -67,7 +66,7 @@ impl CodecTrait for FSK {
         // Convert each byte to bits and generate corresponding sine waves
         for &byte in data {
             for bit in super::byte_to_bits(byte) {
-                signal.extend(self.generate_sine_wave(
+                signal.extend(self.gen_wave(
                     if bit { self.freq_1 } else { self.freq_0 },
                     self.samples_per_bit
                 ));
@@ -84,8 +83,8 @@ impl CodecTrait for FSK {
         // Process samples in chunks of samples_per_bit
         for chunk in samples.chunks(self.samples_per_bit as usize) {
             // Use Goertzel algorithm to detect which frequency is present
-            let energy_0 = self.goertzel_energy(chunk, self.freq_0);
-            let energy_1 = self.goertzel_energy(chunk, self.freq_1);
+            let energy_0 = self.correlate(chunk, self.freq_0);
+            let energy_1 = self.correlate(chunk, self.freq_1);
 
             // The frequency with higher energy represents the bit
             current_bits.push(energy_1 > energy_0);
