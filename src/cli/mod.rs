@@ -1,16 +1,16 @@
-use clap::{Parser, Subcommand};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use dev_utils::{app_dt, dlog::*, format::*};
 use crate::{
     audio::{capture::AudioCapture, playback::AudioPlayback, signal::SignalMonitor},
     codec::FSK,
 };
+use clap::{Parser, Subcommand};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use dev_utils::{app_dt, dlog::*, format::*};
+use std::error::Error;
 /// Listeuse ctrlc;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc,
+    atomic::{AtomicBool, Ordering},
 };
-use std::error::Error;
 use std::time::Duration;
 
 /// Command-line interface for the Sonar crate.
@@ -77,11 +77,11 @@ fn list_devices() {
 
     println!("Input devices:");
     for (i, device) in input_devices.iter().enumerate() {
-        println!("{}: {}", i, device.name().unwrap());
+        println!("\t{}: {}", i, device.name().unwrap());
     }
     println!("Output devices:");
     for (i, device) in output_devices.iter().enumerate() {
-        println!("{}: {}", i, device.name().unwrap());
+        println!("\t{}: {}", i, device.name().unwrap());
     }
 }
 
@@ -107,7 +107,8 @@ fn transmit(
     let default_output = host
         .default_output_device()
         .ok_or("No default output device")?;
-    let output_device = select_device_by_index(output_device_index, &output_devices, &default_output);
+    let output_device =
+        select_device_by_index(output_device_index, &output_devices, &default_output);
 
     let encoder = Box::new(FSK::default());
     let playback = AudioPlayback::new_with_device(output_device, encoder)?;
@@ -115,9 +116,8 @@ fn transmit(
     let volume = volume.unwrap_or(1.0);
     // Calculate transmission duration based on encoded sample count and sample rate.
     let samples = playback.encoder.encode(message.as_bytes())?;
-    let duration = Duration::from_secs_f32(
-        samples.len() as f32 / playback.config.sample_rate.0 as f32,
-    );
+    let duration =
+        Duration::from_secs_f32(samples.len() as f32 / playback.config.sample_rate.0 as f32);
     let stream = playback.transmit_with_volume(message.as_bytes(), volume)?;
 
     std::thread::sleep(duration);
@@ -126,8 +126,6 @@ fn transmit(
 
     Ok(())
 }
-
-
 
 fn listen(input_device_index: Option<usize>, _monitor: bool) -> Result<(), Box<dyn Error>> {
     let host = cpal::default_host();
@@ -172,14 +170,12 @@ fn listen(input_device_index: Option<usize>, _monitor: bool) -> Result<(), Box<d
             // }
         }
     }
-    
 
-    // .start_time.elapsed() 
+    // .start_time.elapsed()
     println!("Total time: {:?}", signal_monitor.start_time.elapsed());
     println!("Listening complete.\n");
     Ok(())
 }
-
 
 /// Run the CLI, parsing arguments and executing the appropriate subcommand.
 pub fn run() {

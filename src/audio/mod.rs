@@ -10,8 +10,8 @@ pub mod dev;
 pub mod playback;
 pub mod signal;
 
-pub fn list_audio_devices(
-) -> Result<(Vec<cpal::Device>, Vec<cpal::Device>), Box<dyn std::error::Error>> {
+pub fn list_audio_devices()
+-> Result<(Vec<cpal::Device>, Vec<cpal::Device>), Box<dyn std::error::Error>> {
     let host = cpal::default_host();
 
     // list the available devices
@@ -100,9 +100,9 @@ pub fn interpolate_color(value: f32, min: f32, max: f32) -> Color {
 
     let factor = (t - color1.0) / (color2.0 - color1.0);
 
-    let r = (color1.1 .0 as f32 * (1.0 - factor) + color2.1 .0 as f32 * factor) as u8;
-    let g = (color1.1 .1 as f32 * (1.0 - factor) + color2.1 .1 as f32 * factor) as u8;
-    let b = (color1.1 .2 as f32 * (1.0 - factor) + color2.1 .2 as f32 * factor) as u8;
+    let r = (color1.1.0 as f32 * (1.0 - factor) + color2.1.0 as f32 * factor) as u8;
+    let g = (color1.1.1 as f32 * (1.0 - factor) + color2.1.1 as f32 * factor) as u8;
+    let b = (color1.1.2 as f32 * (1.0 - factor) + color2.1.2 as f32 * factor) as u8;
 
     Color::from((r, g, b))
 }
@@ -140,9 +140,8 @@ pub fn create_gradient_meter(value: f32, width: usize, peak_pos: Option<usize>) 
 }
 
 pub fn format_signal_value(value: f32) -> String {
-    let color = interpolate_color(value, 0.0, 0.1);
     format!("{:>10.8}", value)
-        .color(color)
+        .color(interpolate_color(value, 0.0, 0.1))
         .style(Style::Bold)
         .to_string()
 }

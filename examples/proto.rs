@@ -1,17 +1,23 @@
 #![allow(unused)] // silence unused warnings while developing
 
+use core::error;
 use cpal::traits::StreamTrait;
 use cpal::{
-    traits::{DeviceTrait, HostTrait},
     Device,
+    traits::{DeviceTrait, HostTrait},
 };
-use dev_utils::{app_dt, debug, dlog::{self, *}, error, format::*, info, read_input, trace, warn};
+use dev_utils::{
+    app_dt, debug,
+    dlog::{self, *},
+    error,
+    format::*,
+    info, read_input, trace, warn,
+};
 use sonar::codec::CodecTrait;
 use sonar::{
     audio::{capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, select_device},
     codec::FSK,
 };
-use core::error;
 use std::{default, error::Error, thread, time::Duration};
 
 fn get_capture_device() -> AudioCapture {

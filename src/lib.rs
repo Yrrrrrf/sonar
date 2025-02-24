@@ -1,14 +1,12 @@
 // * Some of the most useful dis-allows (to silence most of the clippy warnings)
-#![allow(unused)]
+// #![allow(unused)]
 
 pub mod audio;
 pub mod codec;
-pub mod modem; 
+pub mod modem;
 
 // #[cfg(feature = "cli")]
 pub mod cli;
-
-
 
 // #[cfg(feature = "cli")]
 // fn start_cli() {
@@ -24,7 +22,6 @@ pub mod cli;
 //     start_cli();
 // }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -32,5 +29,4 @@ mod tests {
     fn some_test() {
         assert_eq!((2_i32.pow(3)) - 4, 4);
     }
-
 }

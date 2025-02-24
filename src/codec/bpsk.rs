@@ -17,10 +17,9 @@ pub struct BPSK {
 
 impl Default for BPSK {
     fn default() -> Self {
-        Self::new( SAMPLE_RATE, 1_200.0, SAMPLE_RATE / 1_200 )
+        Self::new(SAMPLE_RATE, 1_200.0, SAMPLE_RATE / 1_200)
     }
 }
-
 
 impl BPSK {
     /// Creates a new BPSK encoder/decoder with the given parameters.

@@ -6,18 +6,80 @@ const F_PRIORITY: u8 = 0x02; // High priority frame
 const F_CONTROL: u8 = 0x04; // Control frame (not data)
 const F_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
 
+/// A generic container for a pair of addresses.
+pub type AddressPair<A> = (A, A);
 
 macro_rules! define_addresses {
     ($($(#[$meta:meta])* $name:ident: $inner:ty),* $(,)?) => {
+        // New generic Header struct to handle address pairs at any layer.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct Header<A> {
+            pub addresses: AddressPair<A>,
+        }
+
+        impl<A: Default> Default for Header<A> {
+            fn default() -> Self {
+                Self {
+                    addresses: (A::default(), A::default()),
+                }
+            }
+        }
+
         $(
             $(#[$meta])*
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub struct $name($inner);
+            pub type $name = $inner;
+
+            impl Header<$name> {
+                pub fn new(src: $inner, dst: $inner) -> Self {
+                    Self {
+                        addresses: (src, dst),
+                    }
+                }
+            }
+
         )*
     };
 }
 
-define_addresses!(
+macro_rules! define_layer_struct {
+    (
+        $(
+            $(#[$meta:meta])*
+            $name:ident { header: $header_ty:ty, $payload_field:ident: $payload_ty:ty $(,)? }
+        ),* $(,)?
+    ) => {
+        $(
+            // Apply any doc comments or attributes provided.
+            $(#[$meta])*
+            #[derive(Clone, Debug, PartialEq)]
+            pub struct $name {
+                pub header: Header<$header_ty>,
+                pub $payload_field: $payload_ty,
+            }
+
+            impl $name {
+                /// Creates a new instance of the struct.
+                pub fn new(header: Header<$header_ty>, $payload_field: $payload_ty) -> Self {
+                    Self {
+                        header,
+                        $payload_field,
+                    }
+                }
+            }
+
+            impl Default for $name {
+                fn default() -> Self {
+                    Self {
+                        header: Header::<$header_ty>::default(),
+                        $payload_field: Default::default(),
+                    }
+                }
+            }
+        )*
+    }
+}
+
+define_addresses! {
     /// Represents a MAC address.
     MacAddress: [u8; 6],
     /// Represents an IPv4 address.
@@ -26,55 +88,20 @@ define_addresses!(
     PortAddress: u16,
     // /// Represents an IPv6 address.
     // Ipv6Address: u128,
-);
-
-/// A generic container for a pair of addresses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AddressPair<A> {
-    pub src: A,
-    pub dst: A,
-}
-// New generic Header struct to handle address pairs at any layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Header<A> {pub addresses: AddressPair<A>,}
-impl Header<MacAddress> {
-    pub fn new(src: MacAddress, dst: MacAddress) -> Self {
-        Self { addresses: AddressPair { src, dst } }
-    }
 }
 
-
-// * Transport Layer (+mac)
-#[derive(Debug)]
-pub struct Segment {
-    pub header: Header<PortAddress>,
-    pub payload: Vec<u8>,
+define_layer_struct! {
+    // * Transport Layer (+mac)
+    /// Represents a transport layer segment.
+    Segment { header: PortAddress, payload: Vec<u8> },
+    // * Network Layer (+ip)
+    /// Represents a network layer packet.
+    Packet { header: Ipv4Address, payload: Vec<Segment> },
+    // * Data Link Layer
+    /// Represents a data link layer frame.
+    Frame { header: MacAddress, network_pdu: Vec<Packet> },
 }
 
-impl Segment {
-    pub fn new(header: Header<PortAddress>, payload: Vec<u8>) -> Self {
-        Self { header, payload }
-    }
-}
-
-
-// * Network Layer (+ip)
-#[derive(Debug)]
-pub struct Packet {
-    pub header: Header<Ipv4Address>, // IP header with source and destination addresses.
-    pub payload: Vec<Segment>, // Transport layer segment.
-}
-
-impl Packet {
-    pub fn new(header: Header<Ipv4Address>, payload: Vec<Segment>) -> Self {
-        Self { header, payload }
-    }
-    
-    pub fn validate(&self) -> bool {unimplemented!()}
-}
-
-
-// * Data Link Layer (+ip)
 /// Enum representing the frame types, with frame-specific data embedded.
 #[derive(Debug, Clone, Copy)]
 pub enum FrameKind {
@@ -85,47 +112,52 @@ pub enum FrameKind {
 }
 
 impl Default for FrameKind {
-    fn default() -> Self {FrameKind::BitOriented { flag: 0b01111110 }}
-    // fn default() -> Self {FrameKind::AsyncPPP { start_delim: 0b01111110, end_delim: 0b01111110 }}
-}
-
-/// Represents a frame in the data link layer.
-#[derive(Debug)]
-pub struct Frame {
-    pub header: Header<MacAddress>,
-    pub kind: FrameKind,
-    pub network_pdu: Vec<Packet>,
+    fn default() -> Self {
+        FrameKind::BitOriented { flag: 0b01111110 }
+    }
 }
 
 impl Frame {
-    // pub fn new(
-    //     frame_header: Header<MacAddress>,
-    //     network_header: Header<Ipv4Address>,
-    //     transport_header: Header<PortAddress>,
-    //     data: Vec<u8>,
-    //     kind: Option<FrameKind>,
-    // ) -> Self {
-    //     // todo: Change this! I mean... The frame should be able to hold multiple packets.
-    //     // todo: But the user shouldn't be able to create a frame with multiple packets.
-    //     // todo: So, the Frame itself must be able to handle multiple packets instead of letting the user do it.
-    //     let segment = Segment::new(transport_header, data);
-    //     let packet = Packet::new(network_header, vec![segment]);
-    //     let network_pdus = vec![packet];
+    /// Creates a new data frame by splitting the provided data into segments and packets.
+    /// Each segment holds 16 bytes, and each packet contains 8 segments.
+    pub fn new_dt(src: MacAddress, dst: MacAddress, data: Vec<u8>) -> Self {
+        // Create the MAC header for the frame
+        let header = Header::<MacAddress>::new(src, dst);
+        println!("Creating frame with src: {:?} and dst: {:?}", src, dst);
 
-    //     Self {
-    //         header: frame_header,
-    //         network_pdu: network_pdus,
-    //         kind: kind.unwrap_or_default(), // Defaults to DDCMP if not provided.
-    //     }
-    // }
+        // Split data into segments of 16 bytes each.
+        let segments: Vec<Segment> = data
+            .chunks(16)
+            .enumerate()
+            .map(|(i, chunk)| {
+                println!("Creating Segment {} with data: {:?}", i, chunk);
+                // Create a Segment with a default PortAddress header and the chunk as payload.
+                Segment::new(Header::<PortAddress>::default(), chunk.to_vec())
+            })
+            .collect();
 
-    pub fn simple_frame(src: MacAddress, dst: MacAddress, data: Vec<u8>) -> Self {
-        // todo: Impl this to be able to generate a simple frame...
+        // Group segments into packets: each packet gets up to 8 segments.
+        let packets: Vec<Packet> = segments
+            .chunks(8)
+            .enumerate()
+            .map(|(i, seg_chunk)| {
+                println!("Creating Packet {} with {} segment(s)", i, seg_chunk.len());
+                // Create a Packet with a default Ipv4Address header and the segments as payload.
+                Packet::new(Header::<Ipv4Address>::default(), seg_chunk.to_vec())
+            })
+            .collect();
+
+        println!("Frame creation complete with {} packet(s)", packets.len());
         Self {
-            header: Header::new(src, dst),
-            network_pdu: vec![],
-            kind: FrameKind::default(),
+            header,
+            network_pdu: packets,
         }
+    }
 
+    // Rename parameter to avoid unused variable warning
+    pub fn gen_frame(frame_type: FrameKind) -> Vec<u8> {
+        println!("Generating frame of type: {:?}", frame_type);
+        // SIMULATE THAT USES THE frame type if needed in future
+        vec![0]
     }
 }

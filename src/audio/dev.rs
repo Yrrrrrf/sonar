@@ -7,8 +7,8 @@ pub trait Encoder: Send {
 
 // Then update the AudioDev implementation:
 use bytes::BytesMut;
-use cpal::traits::StreamTrait;
 use cpal::Stream;
+use cpal::traits::StreamTrait;
 use dev_utils::{dlog::*, format::*};
 use std::{
     error::Error,

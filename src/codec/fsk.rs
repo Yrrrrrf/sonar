@@ -14,7 +14,7 @@ pub struct FSK {
 
 impl Default for FSK {
     fn default() -> Self {
-        Self::new( SAMPLE_RATE, 1_200.0, 2_400.0, SAMPLE_RATE / 1_200 )
+        Self::new(SAMPLE_RATE, 1_200.0, 2_400.0, SAMPLE_RATE / 1_200)
     }
 }
 
@@ -68,7 +68,7 @@ impl CodecTrait for FSK {
             for bit in super::byte_to_bits(byte) {
                 signal.extend(self.gen_wave(
                     if bit { self.freq_1 } else { self.freq_0 },
-                    self.samples_per_bit
+                    self.samples_per_bit,
                 ));
             }
         }

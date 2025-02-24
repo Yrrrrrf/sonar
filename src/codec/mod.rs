@@ -11,20 +11,25 @@ pub use bpsk::BPSK;
 // pub mod qpsk;
 // pub use qpsk::QPSK;
 
-
 const SAMPLE_RATE: u32 = 48_000; // 48 kHz
-const BAUD_RATE: u32 = 1_200;    // 1.2 kbps
+const BAUD_RATE: u32 = 1_200; // 1.2 kbps
 const SAMPLES_PER_BIT: u32 = SAMPLE_RATE / BAUD_RATE;
 
-
-
-
-pub fn byte_to_bits<T>(byte: u8) -> Vec<T>  where T: From<bool> {
-    (0..8).map(|i| T::from(((byte >> (7 - i)) & 1) == 1)).collect()
+pub fn byte_to_bits<T>(byte: u8) -> Vec<T>
+where
+    T: From<bool>,
+{
+    (0..8)
+        .map(|i| T::from(((byte >> (7 - i)) & 1) == 1))
+        .collect()
 }
 
-pub fn bits_to_byte<T>(bits: &[T]) -> u8  where T: Into<bool> + Copy {
-    bits.iter().fold(0u8, |acc, &bit| (acc << 1) | if bit.into() { 1 } else { 0 })
+pub fn bits_to_byte<T>(bits: &[T]) -> u8
+where
+    T: Into<bool> + Copy,
+{
+    bits.iter()
+        .fold(0u8, |acc, &bit| (acc << 1) | if bit.into() { 1 } else { 0 })
 }
 
 // Core encoding/decoding methods
@@ -55,7 +60,7 @@ macro_rules! impl_codec {
                     )*
                 }
             }
-            
+
             // todo: receive some signal samples...
             pub fn decode(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
                 match self {
@@ -69,7 +74,6 @@ macro_rules! impl_codec {
 }
 
 impl_codec!(
-    FSK,
-    BPSK,
+    FSK, BPSK,
     // QPSK,
 );
