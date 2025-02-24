@@ -12,9 +12,6 @@ pub use bpsk::BPSK;
 // pub use qpsk::QPSK;
 
 
-
-
-
 const SAMPLE_RATE: u32 = 48_000; // 48 kHz
 const BAUD_RATE: u32 = 1_200;    // 1.2 kbps
 const SAMPLES_PER_BIT: u32 = SAMPLE_RATE / BAUD_RATE;

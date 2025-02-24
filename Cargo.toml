@@ -1,7 +1,7 @@
 [package]
 name = "sonar"
 version = "0.0.2"
-edition = "2021"
+edition = "2024"
 description = "Simple data transfer protocol using audio signals"
 authors = ["Yrrrrrf"]
 documentation = "http://docs.rs/sonar"
@@ -31,7 +31,6 @@ rustfft = "6.2.0"  # FFT (Fast Fourier Transform)
 bytes = { version = "1.10.0", features = ["serde"] }  # Efficient byte handling
 lazy_static = "1.5.0"  # lazy initialization
 
-# CLI DEPENDENCIES
 clap = { version = "4.5.30", optional = true}  # command line arguments
 
 # TESTING DEPENDENCIES

@@ -1,10 +1,10 @@
 // * Common
 
-// Frame flags
-const FLAG_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message
-const FLAG_PRIORITY: u8 = 0x02; // High priority frame
-const FLAG_CONTROL: u8 = 0x04; // Control frame (not data)
-const FLAG_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
+// Frame Flags:
+const F_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message
+const F_PRIORITY: u8 = 0x02; // High priority frame
+const F_CONTROL: u8 = 0x04; // Control frame (not data)
+const F_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
 
 
 macro_rules! define_addresses {
@@ -17,16 +17,15 @@ macro_rules! define_addresses {
     };
 }
 
-// Using the macro to define multiple address types in a single call.
 define_addresses!(
     /// Represents a MAC address.
     MacAddress: [u8; 6],
     /// Represents an IPv4 address.
     Ipv4Address: u32,
-    /// Represents an IPv6 address.
-    Ipv6Address: u128,
     /// Represents a PORT address.
     PortAddress: u16,
+    // /// Represents an IPv6 address.
+    // Ipv6Address: u128,
 );
 
 /// A generic container for a pair of addresses.
@@ -63,11 +62,11 @@ impl Segment {
 #[derive(Debug)]
 pub struct Packet {
     pub header: Header<Ipv4Address>, // IP header with source and destination addresses.
-    pub payload: Segment,            // Transport layer segment.
+    pub payload: Vec<Segment>, // Transport layer segment.
 }
 
 impl Packet {
-    pub fn new(header: Header<Ipv4Address>, payload: Segment) -> Self {
+    pub fn new(header: Header<Ipv4Address>, payload: Vec<Segment>) -> Self {
         Self { header, payload }
     }
     
@@ -87,7 +86,6 @@ pub enum FrameKind {
 
 impl Default for FrameKind {
     fn default() -> Self {FrameKind::BitOriented { flag: 0b01111110 }}
-    // fn default() -> Self {FrameKind::DDCMP { control: 0 }}
     // fn default() -> Self {FrameKind::AsyncPPP { start_delim: 0b01111110, end_delim: 0b01111110 }}
 }
 
@@ -100,33 +98,29 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn new(
-        frame_header: Header<MacAddress>,
-        network_header: Header<Ipv4Address>,
-        transport_header: Header<PortAddress>,
-        data: Vec<u8>,
-        kind: Option<FrameKind>,
-    ) -> Self {
-        // Create the transport layer segment and network layer packet.
-        let segment = Segment::new(transport_header, data);
-        let packet = Packet::new(network_header, segment);
-        let network_pdus = vec![packet];
+    // pub fn new(
+    //     frame_header: Header<MacAddress>,
+    //     network_header: Header<Ipv4Address>,
+    //     transport_header: Header<PortAddress>,
+    //     data: Vec<u8>,
+    //     kind: Option<FrameKind>,
+    // ) -> Self {
+    //     // todo: Change this! I mean... The frame should be able to hold multiple packets.
+    //     // todo: But the user shouldn't be able to create a frame with multiple packets.
+    //     // todo: So, the Frame itself must be able to handle multiple packets instead of letting the user do it.
+    //     let segment = Segment::new(transport_header, data);
+    //     let packet = Packet::new(network_header, vec![segment]);
+    //     let network_pdus = vec![packet];
 
-        Self {
-            header: frame_header,
-            network_pdu: network_pdus,
-            kind: kind.unwrap_or_default(), // Defaults to DDCMP if not provided.
-        }
-    }
+    //     Self {
+    //         header: frame_header,
+    //         network_pdu: network_pdus,
+    //         kind: kind.unwrap_or_default(), // Defaults to DDCMP if not provided.
+    //     }
+    // }
 
-    pub fn simple_frame(
-        src: MacAddress,
-        dst: MacAddress,
-        data: Vec<u8>,
-    ) -> Self {
-
+    pub fn simple_frame(src: MacAddress, dst: MacAddress, data: Vec<u8>) -> Self {
         // todo: Impl this to be able to generate a simple frame...
-        // todo: Later on then, improve the code to be able to generate a frame with multiple packets.
         Self {
             header: Header::new(src, dst),
             network_pdu: vec![],
