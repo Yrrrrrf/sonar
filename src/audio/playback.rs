@@ -4,7 +4,7 @@ use std::{error::Error, sync::Arc};
 use crate::codec::CodecTrait;
 
 pub struct AudioPlayback {
-    config: cpal::StreamConfig,    // Device configuration
+    pub config: cpal::StreamConfig,    // Device configuration
     pub device: cpal::Device,      // The physical output device (speakers)
     pub encoder: Box<dyn CodecTrait>, // The encoder instance for signal processing
 }

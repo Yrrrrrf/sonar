@@ -1,4 +1,5 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::Sample;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 
@@ -56,6 +57,13 @@ impl AudioCapture {
             &self.config,
             move |data: &[f32], _: &_| {
                 let mut samples = samples.lock().unwrap();
+
+                // if let Some(max) = samples.iter().cloned().map(f32::abs).max() {
+                //     if max > 0.1 {
+                //         eprintln!("Clipping detected: {}", max);
+                //     }
+                // }
+
                 samples.extend_from_slice(data);
             },
             |err| eprintln!("Error in input stream: {}", err),

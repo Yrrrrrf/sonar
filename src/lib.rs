@@ -1,12 +1,13 @@
 // * Some of the most useful dis-allows (to silence most of the clippy warnings)
-// #![allow(unused)]
+#![allow(unused)]
 
 pub mod audio;
 pub mod codec;
 pub mod modem; 
 
-#[cfg(feature = "cli")]
+// #[cfg(feature = "cli")]
 pub mod cli;
+
 
 
 // #[cfg(feature = "cli")]

@@ -1,6 +1,6 @@
 [package]
 name = "sonar"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 description = "Simple data transfer protocol using audio signals"
 authors = ["Yrrrrrf"]
@@ -23,15 +23,16 @@ opt-level = 3       # optimization level
 # DEV DEPS
 # dev_utils = { path = "../dev_utils/dev_utils/" }  # local crate (dev-utils)
 dev_utils = "0.1.1"  # local crate (dev-utils)
-thiserror = "2.0.11"  # error handling
 
 # DATA TRANSFER PROTOCOL dependencies
 cpal = "0.15.3"  # code for audio input/output
-rustfft = "6.2.0"  # FFT (Fast Fourier Transform)
+ctrlc = "3.4.5"  # handling Ctrl+C
+# rustfft = "6.2.0"  # FFT (Fast Fourier Transform)
 bytes = { version = "1.10.0", features = ["serde"] }  # Efficient byte handling
-lazy_static = "1.5.0"  # lazy initialization
+lazy_static = "1.5.0"
 
-clap = { version = "4.5.30", optional = true}  # command line arguments
+# clap = { version = "4.5.30", features = ["derive"], optional = true}  # command line arguments
+clap = { version = "4.5.30", features = ["derive"]}  # command line arguments
 
 # TESTING DEPENDENCIES
 rand = "0.9.0"  # random number generation
@@ -41,8 +42,8 @@ criterion = "0.5.1"  # benchmarking
 
 
 [features]
-cli = ["clap"]  # Enables CLI-specific functionality
+# cli = ["clap"]  # Enables CLI-specific functionality
 
 full = [
-    "cli",
+    # "cli",
 ]  # complete production features
