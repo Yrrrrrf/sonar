@@ -1,10 +1,15 @@
 // * Some of the most useful dis-allows (to silence most of the clippy warnings)
-// #![allow(unused)]
+#![allow(unused)]
 
 pub mod audio;
 pub mod codec;
 pub mod modem;
 
+// pub use modem::frame::{
+//     Frame,
+
+// };
+// pub use modem::segment::Segment;
 
 // #[cfg(feature = "cli")]
 pub mod cli;

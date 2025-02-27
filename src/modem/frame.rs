@@ -1,50 +1,19 @@
 // * Common
-
+use bytes::{BufMut, Bytes, BytesMut};
 use std::fmt::{self, Display, Formatter};
 
-use dev_utils::format::*;
+use dev_utils::{format::*, info, trace};
 
+use crate::modem::{Header, PortAddress, Segment};
+// Fix: Don't try to import segment_utils module that doesn't exist yet
+
+use super::{Ipv4Address, MacAddress};
 
 // // Frame Flags:
 // const F_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message
 // const F_PRIORITY: u8 = 0x02; // High priority frame
 // const F_CONTROL: u8 = 0x04; // Control frame (not data)
 // const F_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
-
-/// A generic container for a pair of addresses.
-pub type AddressPair<A> = (A, A);
-
-macro_rules! define_addresses {
-    ($($(#[$meta:meta])* $name:ident: $inner:ty),* $(,)?) => {
-        // New generic Header struct to handle address pairs at any layer.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct Header<A> {
-            pub addresses: AddressPair<A>,
-        }
-
-        impl<A: Default> Default for Header<A> {
-            fn default() -> Self {
-                Self {
-                    addresses: (A::default(), A::default()),
-                }
-            }
-        }
-
-        $(
-            $(#[$meta])*
-            pub type $name = $inner;
-
-            impl Header<$name> {
-                pub fn new(src: $inner, dst: $inner) -> Self {
-                    Self {
-                        addresses: (src, dst),
-                    }
-                }
-            }
-
-        )*
-    };
-}
 
 macro_rules! define_layer_struct {
     (
@@ -56,7 +25,7 @@ macro_rules! define_layer_struct {
         $(
             // Apply any doc comments or attributes provided.
             $(#[$meta])*
-            #[derive(Clone, PartialEq)]
+            #[derive(Clone, PartialEq, Debug)]
             pub struct $name {
                 pub header: Header<$header_ty>,
                 pub $payload_field: $payload_ty,
@@ -80,106 +49,68 @@ macro_rules! define_layer_struct {
                     }
                 }
             }
+
+            impl Display for $name {
+                fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                    writeln!( f, "{}", format!(
+                        "src: {:X?} -> dst: {:X?} | {:>4} {}'s |",
+                        self.header.addresses.0,
+                        self.header.addresses.1,
+                        self.$payload_field.len(),
+                        stringify!($payload_field)
+                    ).style(Style::Italic)
+                    )?;
+                    for (idx, item) in self.$payload_field.iter().enumerate() {
+                        writeln!(f, "\t{} {}: {}", stringify!($payload_field), idx, item)?;
+                    }
+                    Ok(())
+                }
+            }
+
+            // * for item in frame { ... }
+            // Iterator implementation for owned type
+            impl IntoIterator for $name {
+                type Item = <$payload_ty as IntoIterator>::Item;
+                type IntoIter = <$payload_ty as IntoIterator>::IntoIter;
+
+                fn into_iter(self) -> Self::IntoIter {
+                    self.$payload_field.into_iter()
+                }
+            }
+
+            // * for item in &frame { ... }
+            // Iterator implementation for borrowed type
+            impl<'a> IntoIterator for &'a $name {
+                type Item = &'a <$payload_ty as IntoIterator>::Item;
+                type IntoIter = std::slice::Iter<'a, <$payload_ty as IntoIterator>::Item>;
+
+                fn into_iter(self) -> Self::IntoIter {
+                    self.$payload_field.iter()
+                }
+            }
+
+            // * for item in &mut frame { ... }
+            // Iterator implementation for mutably borrowed type
+            impl<'a> IntoIterator for &'a mut $name {
+                type Item = &'a mut <$payload_ty as IntoIterator>::Item;
+                type IntoIter = std::slice::IterMut<'a, <$payload_ty as IntoIterator>::Item>;
+
+                fn into_iter(self) -> Self::IntoIter {
+                    self.$payload_field.iter_mut()
+                }
+            }
         )*
     }
 }
 
-define_addresses! {
-    /// Represents a MAC address.
-    MacAddress: [u8; 6],
-    /// Represents an IPv4 address.
-    Ipv4Address: u32,
-    /// Represents a PORT address.
-    PortAddress: u16,
-    // /// Represents an IPv6 address.
-    // Ipv6Address: u128,
-}
-
 define_layer_struct! {
-    // * Transport Layer (+mac)
-    /// Represents a transport layer segment.
-    Segment { header: PortAddress, payload: Vec<u8> },
     // * Network Layer (+ip)
     /// Represents a network layer packet.
-    Packet { header: Ipv4Address, payload: Vec<Segment> },
+    Packet { header: Ipv4Address, pdu: Vec<Segment> },
     // * Data Link Layer
     /// Represents a data link layer frame.
     Frame { header: MacAddress, network_pdu: Vec<Packet> },
 }
-
-/// Display for a Segment: shows its payload (hex formatted) with dim styling.
-impl Display for Segment {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // Simply display the payload in hex with dim styling.
-        write!(f, "{}", format!("{:X?}", self.payload).style(Style::Dim))
-    }
-}
-
-/// Display for a Packet: shows header info in bold, then prints each Segment.
-/// Note: This impl does not include the packet ID (since a Packet doesn’t know its own ID),
-/// so the Frame impl will add the packet index.
-impl Display for Packet {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // Print packet header info in bold.
-        writeln!(
-            f,
-            "{}",
-            format!(
-                "src: {:X?} -> dst: {:X?} | segments: {}",
-                self.header.addresses.0,
-                self.header.addresses.1,
-                self.payload.len()
-            )
-            .style(Style::Bold)
-        )?;
-        // Print each segment on its own line.
-        for (seg_idx, segment) in self.payload.iter().enumerate() {
-            writeln!(
-                f,
-                "    Segment {}: {}",
-                // Here we print the segment id (without packet id) in dim style.
-                format!("[id-{}]", seg_idx).style(Style::Dim),
-                segment // This uses the Display for Segment.
-            )?;
-        }
-        Ok(())
-    }
-}
-
-/// Display for a Frame: prints its header in bold, then iterates each Packet,
-/// prepending a packet id so that the full hierarchy is visible.
-impl Display for Frame {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // Print Frame header info in bold.
-        writeln!(
-            f,
-            "{}",
-            format!(
-                "Frame [src: {:X?} -> dst: {:X?} | total_packets: {}]",
-                self.header.addresses.0,
-                self.header.addresses.1,
-                self.network_pdu.len()
-            )
-            .style(Style::Bold)
-        )?;
-        // For each packet, print the packet id and then its Display output.
-        for (pkt_idx, packet) in self.network_pdu.iter().enumerate() {
-            writeln!(
-                f,
-                "  Packet {}:",
-                format!("[id-{}]", pkt_idx).style(Style::Dim)
-            )?;
-            // Indent each line of the Packet’s output.
-            let packet_str = format!("{}", packet);
-            for line in packet_str.lines() {
-                writeln!(f, "    {}", line)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-
 
 /// Enum representing the frame types, with frame-specific data embedded.
 #[derive(Debug, Clone, Copy)]
@@ -192,44 +123,117 @@ pub enum FrameKind {
 
 impl Default for FrameKind {
     fn default() -> Self {
-        FrameKind::BitOriented { flag: 0b01111110 }
+        // & 0b01111110  == 0x7E == 126 == 0
+        FrameKind::BitOriented { flag: 0x7E }
+        // FrameKind::BySync { sync: 0x7E }
+        // FrameKind::DDCMP { control: 0x03 }
+        // FrameKind::AsyncPPP { start_delim: 0x7E, end_delim: 0x7E }
     }
 }
 
+// * ON BYTES!
+const SEGMENT_SIZE: usize = 32;
+const PACKET_SIZE: usize = 4;
 
 impl Frame {
     /// Creates a new data frame by splitting the provided data into segments and packets.
-    /// Each segment holds 16 bytes, and each packet contains 8 segments.
-    pub fn new_dt(src: MacAddress, dst: MacAddress, data: Vec<u8>) -> Self {
+    /// Takes any type that can be referenced as a byte slice.
+    pub fn new_dt(src: MacAddress, dst: MacAddress, data: impl AsRef<[u8]>) -> Self {
         // Create the MAC header for the frame
         let header = Header::<MacAddress>::new(src, dst);
-        println!("Creating frame with src: {:X?} and dst: {:X?}", src, dst);
+        info!("Creating frame with src: {:X?} and dst: {:X?}", src, dst);
 
-        let segments: Vec<Segment> = data.chunks(16).enumerate()
-            .map(|(i, chunk)| {
-                println!("\t-> Segment {i:>4} with data: {}", format!("{:?}", chunk).style(Style::Dim));
-                Segment::new(Header::<PortAddress>::default(), chunk.to_vec())
-            }).collect();
+        // Get a reference to the data slice
+        let data_slice = data.as_ref();
 
-        let packets: Vec<Packet> = segments.chunks(8).enumerate()
-            .map(|(i, seg_chunk)| {
-                // println!("{:?}", seg_chunk);
-                // format!("Creating Packet {} with {} segment(s)", i, seg_chunk.len()).style(Style::Dim);
-                // Create a Packet with a default Ipv4Address header and the segments as payload.
-                Packet::new(Header::<Ipv4Address>::default(), seg_chunk.to_vec())
-            }).collect();
+        // Process data into segments using builders for efficiency
+        let segments: Vec<Segment> = data_slice
+            .chunks(SEGMENT_SIZE)
+            .map(|chunk| {
+                let mut builder = Segment::builder(Header::<PortAddress>::default());
+                builder.put_slice(chunk);
+                builder.build()
+            })
+            .collect();
 
-        // println!("Frame creation complete with {} packet(s)", packets.len());
-        Self {
+        // Group segments into packets
+        let packets: Vec<Packet> = segments
+            .chunks(PACKET_SIZE)
+            .map(|seg_chunk| Packet::new(Header::<Ipv4Address>::default(), seg_chunk.to_vec()))
+            .collect();
+
+        let frame = Self {
             header,
             network_pdu: packets,
+        };
+
+        trace!("Frame created with {} packets", frame.network_pdu.len());
+        for (i, packet) in frame.network_pdu.iter().enumerate() {
+            trace!("  Packet {}: {} segments", i, packet.pdu.len());
         }
+
+        frame
     }
 
-    // Rename parameter to avoid unused variable warning
-    // pub fn gen_frame(frame_type: FrameKind) -> Vec<u8> {
-    //     println!("Generating frame of type: {:?}", frame_type);
-    //     // SIMULATE THAT USES THE frame type if needed in future
-    //     vec![0]
-    // }
+    /// Creates a new data frame directly from Bytes
+    pub fn new_dt_bytes(src: MacAddress, dst: MacAddress, data: Bytes) -> Self {
+        Self::new_dt(src, dst, data.as_ref())
+    }
+
+    /// Extract all data from the frame as a single Bytes object
+    pub fn extract_data(&self) -> Bytes {
+        // Calculate total size to preallocate buffer with enough capacity
+        let estimated_size = self.calculate_total_data_size();
+        let mut buffer = BytesMut::with_capacity(estimated_size);
+
+        // Extract data from all segments in all packets
+        for packet in &self.network_pdu {
+            for segment in &packet.pdu {
+                buffer.extend_from_slice(segment.as_slice());
+            }
+        }
+
+        buffer.freeze()
+    }
+
+    /// Calculate the total size of all data in the frame
+    pub fn calculate_total_data_size(&self) -> usize {
+        self.network_pdu
+            .iter()
+            .flat_map(|packet| packet.pdu.iter())
+            .map(|segment| segment.len())
+            .sum()
+    }
+
+    /// Get the number of packets in the frame
+    pub fn packet_count(&self) -> usize {
+        self.network_pdu.len()
+    }
+
+    /// Get the total number of segments in the frame
+    pub fn segment_count(&self) -> usize {
+        self.network_pdu.iter().map(|packet| packet.pdu.len()).sum()
+    }
+
+    /// Get a flattened iterator over all segments in the frame
+    pub fn segments(&self) -> impl Iterator<Item = &Segment> + '_ {
+        self.network_pdu.iter().flat_map(|packet| packet.pdu.iter())
+    }
+}
+
+impl Packet {
+    /// Calculate the total size of all data in the packet
+    pub fn calculate_data_size(&self) -> usize {
+        self.pdu.iter().map(|segment| segment.len()).sum()
+    }
+
+    /// Get a segment by index
+    pub fn get_segment(&self, index: usize) -> Option<&Segment> {
+        self.pdu.get(index)
+    }
+
+    /// Get a mutable segment by index
+    pub fn get_segment_mut(&mut self, index: usize) -> Option<&mut Segment> {
+        self.pdu.get_mut(index)
+    }
 }
