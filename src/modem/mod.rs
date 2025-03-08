@@ -155,6 +155,34 @@ define_layer_struct! {
     Frame { header: MacAddress, network_pdu: Vec<Packet> },
 }
 
+// Trait for converting a structure to and from bytes
+pub trait ToBytes {
+    /// Converts the structure to a byte representation
+    fn to_bytes(&self) -> Vec<u8>;
+            
+    /// Converts the structure to a byte representation
+    /// and writes it to the provided buffer
+    ///     
+    /// 
+    fn try_to_bytes(&self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
+        let bytes = self.to_bytes();
+        let len = bytes.len();
+        buffer[..len].copy_from_slice(&bytes);
+        Ok(len)
+    }
+
+}
+
+/// Trait for getting size information about a network layer structure
+pub trait LayerSize {
+    fn payload_size(&self) -> usize;
+    fn total_size(&self) -> usize {
+        // get size of the self...
+        self.payload_size();
+        todo!("Implement a correct total size calculation")
+    }
+}
+
 
 
 // todo: Implement the following modules

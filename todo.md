@@ -1,6 +1,12 @@
 # todo
 
 
+Check the current implementation of the modem module. I need you to help me to improve it by adding this stuff:
+
+inside the define_layer_struct macro also add the following:
+- 
+
+
 ## Data Link Layer
 - Frame
     - DHCP Frame

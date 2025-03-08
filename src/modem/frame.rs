@@ -15,6 +15,14 @@ use super::{Ipv4Address, MacAddress};
 
 
 
+
+impl Frame {
+    pub fn get_message(&self) -> &str {
+        panic!("Not implemented")
+    }
+}
+
+
 /// Enum representing the frame types, with frame-specific data embedded.
 #[derive(Debug, Clone, Copy)]
 pub enum FrameKind {
