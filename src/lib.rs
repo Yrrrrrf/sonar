@@ -12,7 +12,6 @@ pub mod modem;
 // pub use modem::segment::Segment;
 
 // #[cfg(feature = "cli")]
-pub mod cli;
 
 // #[cfg(feature = "cli")]
 // fn start_cli() {
