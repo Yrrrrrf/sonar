@@ -1,5 +1,5 @@
 <h1 align="center">
-    <img src="./resources/img/sonar.png" alt="Sonar Icon" width="128">
+    <img src="https://raw.githubusercontent.com/Yrrrrrf/sonar/main/resources/img/sonar.png" alt="Sonar Icon" width="128">
     <div>Sonar</div>
     <!-- <div><small>Audio-Based Data Transfer Protocol</small></div> -->
 </h1>

@@ -1,6 +1,6 @@
 [package]
 name = "sonar"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 description = "Simple data transfer protocol using audio signals"
 authors = ["Yrrrrrf"]
@@ -8,8 +8,8 @@ documentation = "http://docs.rs/sonar"
 repository = "https://github.com/Yrrrrrf/sonar"
 license = "MIT"
 exclude = [
-    "resources/temp/",  # some svg, logs and other resources 
-    "resources/docs/",  # some svg, logs and other resources 
+    "resources/",  # some svg, logs and other resources
+    "docs/",  # some svg, logs and other resources
 ]
 
 # add optimizations for the dependencies
@@ -28,7 +28,7 @@ dev_utils = "0.1.1"  # local crate (dev-utils)
 cpal = "0.15.3"  # code for audio input/output
 ctrlc = "3.4.5"  # handling Ctrl+C
 # rustfft = "6.2.0"  # FFT (Fast Fourier Transform)
-bytes = { version = "1.10.0", features = ["serde"] }  # Efficient byte handling
+bytes = { version = "1.10.1", features = ["serde"] }  # Efficient byte handling
 lazy_static = "1.5.0"
 
 # clap = { version = "4.5.30", features = ["derive"], optional = true}  # command line arguments

@@ -15,7 +15,5 @@ Cargo.lock
 .vscode/
 
 # project specific files
-resources/temp/*
-resources/docs
-*.docx
-
+resources/temp/
+docs/
