@@ -162,8 +162,6 @@ pub trait ToBytes {
             
     /// Converts the structure to a byte representation
     /// and writes it to the provided buffer
-    ///     
-    /// 
     fn try_to_bytes(&self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
         let bytes = self.to_bytes();
         let len = bytes.len();
@@ -183,6 +181,11 @@ pub trait LayerSize {
     }
 }
 
+pub trait LayerBuilder {
+    type Output;  // define the output type of the builder!
+    // this means that the build method will return a value of this type
+    fn build(&self) -> Self::Output;
+}
 
 
 // todo: Implement the following modules
