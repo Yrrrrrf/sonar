@@ -9,7 +9,7 @@ use dev_utils::{
 };
 
 use bytes::{BufMut, Bytes, BytesMut};
-use sonar::modem::{
+use sonar::stack::{
     Frame, Header, Ipv4Address, MacAddress, Packet, PortAddress, Segment,
 };
 

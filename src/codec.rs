@@ -1,19 +1,11 @@
-// * std library imports
 use std::error::Error;
 
-// * module imports
-pub mod fsk;
-pub use fsk::FSK;
+use crate::modem::{BPSK, FSK};
 
-pub mod bpsk;
-pub use bpsk::BPSK;
 
-// pub mod qpsk;
-// pub use qpsk::QPSK;
-
-const SAMPLE_RATE: u32 = 48_000; // 48 kHz
-const BAUD_RATE: u32 = 1_200; // 1.2 kbps
-const SAMPLES_PER_BIT: u32 = SAMPLE_RATE / BAUD_RATE;
+pub const SAMPLE_RATE: u32 = 48_000; // 48 kHz
+pub const BAUD_RATE: u32 = 1_200; // 1.2 kbps
+pub const SAMPLES_PER_BIT: u32 = SAMPLE_RATE / BAUD_RATE;
 
 pub fn byte_to_bits<T>(byte: u8) -> Vec<T>
 where

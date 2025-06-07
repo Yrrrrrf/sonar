@@ -17,7 +17,7 @@ use std::{
 };
 
 use super::{capture::AudioCapture, playback::AudioPlayback, signal::SignalMonitor};
-use crate::codec::FSK; // Added FSK import
+use crate::modem::FSK; // Added FSK import
 
 pub struct AudioDev {
     capture: AudioCapture,

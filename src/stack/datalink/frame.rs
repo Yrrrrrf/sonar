@@ -3,9 +3,10 @@ use bytes::{BufMut, Bytes, BytesMut};
 
 use dev_utils::{format::*, info, trace};
 
-use crate::modem::{Frame, Packet, Segment, Header, PortAddress };
+use crate::stack::{Ipv4Address, MacAddress, PortAddress, Header};
 
-use super::{Ipv4Address, MacAddress};
+use crate::stack::{Frame, Packet, Segment,};
+
 
 // // Frame Flags:
 // const F_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message

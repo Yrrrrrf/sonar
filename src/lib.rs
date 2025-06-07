@@ -4,6 +4,7 @@
 pub mod audio;
 pub mod codec;
 pub mod modem;
+pub mod stack;
 
 // pub use modem::frame::{
 //     Frame,

@@ -11,7 +11,7 @@ use sonar::audio::{
     capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, signal::SignalMonitor,
 };
 use sonar::codec::CodecTrait;
-use sonar::codec::FSK;
+use sonar::modem::FSK;
 use sonar::*;
 
 const TEST_DATA: &[u8] = &[
@@ -196,7 +196,8 @@ fn test_fsk_codec() {
 }
 
 fn test_codec() {
-    use sonar::codec::{CodecTrait, FSK};
+    use sonar::modem::FSK;
+    use sonar::codec::CodecTrait;
 
     info!("Main tester");
 

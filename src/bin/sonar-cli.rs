@@ -7,7 +7,7 @@ use dev_utils::app_dt;
 use sonar::audio::capture::AudioCapture;
 use sonar::audio::playback::AudioPlayback;
 use sonar::audio::signal::SignalMonitor;
-use sonar::codec::FSK;
+use sonar::modem::FSK;
 use std::error::Error;
 /// Listeuse ctrlc;
 use std::sync::{
