@@ -64,13 +64,11 @@ impl ModemTrait for BPSK {
     /// Encodes raw data into a BPSK modulated signal.
     ///
     /// Each bit in the input data is converted into a BPSK-modulated sine wave.
-    fn modulate(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
+    fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut signal = Vec::new();
-        // Convert each byte into bits and generate the corresponding BPSK wave
-        for &byte in data {
-            for bit in super::byte_to_bits(byte) {
-                signal.extend(self.gen_wave(bit));
-            }
+        // Generate the corresponding BPSK wave for each bit
+        for &bit in data {
+            signal.extend(self.gen_wave(bit));
         }
         Ok(signal)
     }
@@ -80,7 +78,7 @@ impl ModemTrait for BPSK {
     /// The signal is processed in chunks of `samples_per_bit` and a correlation with a reference
     /// sine wave (phase 0) is computed. A negative correlation implies a bit value of 1,
     /// while a positive correlation implies 0.
-    fn demodulate(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>> {
         let mut decoded_data = Vec::new();
         let mut current_bits = Vec::new();
 
@@ -96,6 +94,6 @@ impl ModemTrait for BPSK {
                 current_bits.clear();
             }
         }
-        Ok(decoded_data)
+        Ok(decoded_data.iter().map(|&b| b != 0).collect())
     }
 }

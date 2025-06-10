@@ -1,9 +1,9 @@
+// src/audio/signal.rs
+
 use dev_utils::format::*;
 use std::time::Instant;
 
-use crate::{
-    audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color}, modem::ModemTrait,
-};
+use crate::audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color};
 
 pub struct SignalMonitor {
     display_width: usize,
@@ -11,91 +11,96 @@ pub struct SignalMonitor {
     samples_count: usize,
     last_peak_pos: Option<usize>,
     pub start_time: Instant,
-    modem: Box<dyn ModemTrait>,
 }
 
 impl SignalMonitor {
-    pub fn new(display_width: usize, modem: Box<dyn ModemTrait>) -> Self {
+    /// Creates a new SignalMonitor for visualizing audio stream properties.
+    ///
+    /// # Arguments
+    /// * `display_width` - The character width of the signal strength meter.
+    pub fn new(display_width: usize) -> Self {
         Self {
             display_width,
             peak_value: 0.0,
             samples_count: 0,
             last_peak_pos: None,
             start_time: Instant::now(),
-            modem,
         }
     }
 
     pub fn print_header(&self) {
-        print!("Signal Strength: ");
-        println!(
-            "│{}│\n",
-            (0..self.display_width)
-                .map(|i| "█".color(interpolate_color(
+        let gradient_bar: String = (0..self.display_width)
+            .map(|i| {
+                "█".color(interpolate_color(
                     i as f32 / self.display_width as f32,
                     0.0,
-                    1.0
-                )))
-                .collect::<String>()
-        );
+                    1.0,
+                ))
+            })
+            .collect();
+
+        println!("Signal Strength: │{}│\n", gradient_bar);
     }
 
-    pub fn process_samples(&mut self, samples: &[f32]) -> Option<Vec<u8>> {
+    /// Processes a chunk of audio samples to update the signal visualization.
+    /// This function no longer decodes data.
+    pub fn process_samples(&mut self, samples: &[f32]) {
         self.samples_count += samples.len();
-        let mut decoded_data = None;
 
-        // Try to decode if we have enough samples
-        if let Ok(data) = self.modem.demodulate(samples) {
-            if !data.is_empty() {
-                decoded_data = Some(data);
-            }
-        }
-
-        // Update signal visualization
+        // Find the maximum absolute sample value in the current chunk.
         if let Some(max_sample) = samples
             .iter()
             .map(|s| s.abs())
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         {
+            // If the current max is a new peak, update the peak value and position.
             if max_sample > self.peak_value {
                 self.peak_value = max_sample;
-                self.last_peak_pos =
-                    Some((self.peak_value * self.display_width as f32 * 2.0) as usize);
+                self.last_peak_pos = Some(
+                    (self.peak_value * self.display_width as f32 * 2.0)
+                        .min(self.display_width as f32 - 1.0) as usize,
+                );
             }
 
+            // Only display the meter if the signal is above a minimal threshold.
             if max_sample > 0.00001 {
                 self.display_signal(max_sample);
             }
         }
 
-        // Handle peak decay
+        // Handle peak value decay over time to make the meter responsive.
+        // Assuming ~48kHz sample rate, decay every second.
         if self.samples_count > 48000 {
-            self.peak_value *= 0.8;
+            self.peak_value *= 0.8; // Decay by 20%
             self.samples_count = 0;
             if self.peak_value < 0.001 {
                 self.peak_value = 0.0;
                 self.last_peak_pos = None;
             }
         }
-
-        decoded_data
     }
 
+    /// Renders the signal strength meter to the console.
     pub fn display_signal(&self, max_sample: f32) {
-        print!("\x1B[2K"); // Clear line
-        print!("\x1B[1G"); // Move to start of line
+        print!("\x1B[2K"); // Clear the current line
+        print!("\x1B[1G"); // Move cursor to the beginning of the line
+
+        let live_indicator = "●".color(if self.samples_count % 2 == 0 {
+            GREEN
+        } else {
+            YELLOW
+        });
+        let meter = create_gradient_meter(max_sample, self.display_width, self.last_peak_pos);
+        let current_value_str = format_signal_value(max_sample);
+        let peak_value_str = format_signal_value(self.peak_value);
 
         println!(
             "{} {} {} {} │ Peak: {}",
             format_time(self.start_time.elapsed()),
-            "●".color(if self.samples_count % 2 == 0 {
-                GREEN
-            } else {
-                YELLOW
-            }),
-            create_gradient_meter(max_sample, self.display_width, self.last_peak_pos),
-            format_signal_value(max_sample),
-            format_signal_value(self.peak_value)
+            live_indicator,
+            meter,
+            current_value_str,
+            peak_value_str
         );
     }
 }

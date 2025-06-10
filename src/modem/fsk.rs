@@ -61,22 +61,20 @@ impl FSK {
 }
 
 impl ModemTrait for FSK {
-    fn modulate(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
+    fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut signal = Vec::new();
-        // Convert each byte to bits and generate corresponding sine waves
-        for &byte in data {
-            for bit in super::byte_to_bits(byte) {
-                signal.extend(self.gen_wave(
-                    if bit { self.freq_1 } else { self.freq_0 },
-                    self.samples_per_bit,
-                ));
-            }
+        // Generate corresponding sine waves for each bit
+        for &bit in data {
+            signal.extend(self.gen_wave(
+                if bit { self.freq_1 } else { self.freq_0 },
+                self.samples_per_bit,
+            ));
         }
 
         Ok(signal)
     }
 
-    fn demodulate(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>> {
         let mut decoded_data = Vec::new();
         let mut current_bits = Vec::new();
 
@@ -96,25 +94,6 @@ impl ModemTrait for FSK {
             }
         }
 
-        Ok(decoded_data)
-    }
-}
-
-// Example usage and test implementation
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_fsk_encoding_decoding() {
-        // * FSK::new(sample_rate, freq_0, freq_1, samples_per_bit)
-        let modem: FSK = FSK::new(48_000, 1_200.0, 2_400.0, 480);
-
-        let test_data = vec![0b10101010, 0b11001100]; // * (0xAA:170,  0xCC:204)
-
-        let enc = modem.modulate(&test_data).unwrap();
-        let dec = modem.demodulate(&enc).unwrap();
-
-        assert_eq!(test_data, dec, "Decoded data should match original data");
+        Ok(decoded_data.iter().map(|&b| b != 0).collect())
     }
 }

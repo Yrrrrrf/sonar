@@ -1,72 +1,61 @@
+// src/audio/playback.rs
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::{error::Error, sync::Arc};
 
-use crate::modem::ModemTrait;
-
-
 pub struct AudioPlayback {
-    pub config: cpal::StreamConfig,   // Device configuration
-    pub device: cpal::Device,         // The physical output device (speakers)
-    pub modem: Box<dyn ModemTrait>, // The modem instance for signal processing
+    pub config: cpal::StreamConfig, // Device configuration
+    pub device: cpal::Device,       // The physical output device (speakers)
 }
 
 impl std::fmt::Debug for AudioPlayback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // write!(f, "AudioPlayback {{ device: {:?}, config: {:?} }}", self.device.name(), self.config)
         f.debug_struct("AudioPlayback")
-            .field("device", &self.device.name().unwrap())
+            .field("device", &self.device.name().unwrap_or_default())
             .field("config", &self.config)
             .finish()
     }
 }
 
 impl AudioPlayback {
-    /// Creates a new AudioPlayback with the default output device and modem
-    pub fn new(modem: Box<dyn ModemTrait>) -> Result<Self, Box<dyn Error>> {
-        Self::new_with_device(
-            cpal::default_host()
-                .default_output_device()
-                .ok_or("No output device found")?,
-            modem,
-        )
+    /// Creates a new AudioPlayback with the default output device.
+    pub fn new() -> Result<Self, Box<dyn Error>> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .ok_or("No default output device available")?;
+        Self::new_with_device(device)
     }
 
-    /// Creates a new AudioPlayback with a specific output device and modem
-    pub fn new_with_device(
-        device: cpal::Device,
-        modem: Box<dyn ModemTrait>,
-    ) -> Result<Self, Box<dyn Error>> {
+    /// Creates a new AudioPlayback with a specific output device.
+    pub fn new_with_device(device: cpal::Device) -> Result<Self, Box<dyn Error>> {
         let config = device.default_output_config()?.config();
-        Ok(Self {
-            device,
-            config,
-            modem,
-        })
+        Ok(Self { device, config })
     }
 
-    /// Send data through the modem and play it with volume control
+    /// Plays the given audio samples with a specific volume.
+    ///
+    /// # Arguments
+    /// * `samples` - A slice of f32 audio samples to be played.
+    /// * `volume` - A volume multiplier (e.g., 1.0 for full volume).
     pub fn transmit_with_volume(
         &self,
-        data: &[u8],
+        samples: &[f32],
         volume: f32,
     ) -> Result<cpal::Stream, Box<dyn Error>> {
-        // Encode the data into audio samples
         let channels = self.config.channels as usize;
-        let samples = Arc::new(self.modem.modulate(data)?);
-        let samples_clone = Arc::clone(&samples);
+        // The samples are already modulated, so we just wrap them for the audio thread.
+        let samples_arc = Arc::new(samples.to_vec());
 
-        let stream = self.build_output_stream(samples_clone, channels, volume)?;
-        stream.play()?;
-
-        Ok(stream)
+        self.build_output_stream(samples_arc, channels, volume)
     }
 
-    /// Send data through the modem and play it (with default volume = 1.0)
-    pub fn transmit(&self, data: &[u8]) -> Result<cpal::Stream, Box<dyn Error>> {
-        self.transmit_with_volume(data, 1.0)
+    /// Plays the given audio samples with default volume (1.0).
+    pub fn transmit(&self, samples: &[f32]) -> Result<cpal::Stream, Box<dyn Error>> {
+        self.transmit_with_volume(samples, 1.0)
     }
 
-    // Private helper methods
+    // Private helper method to build the cpal output stream.
     fn build_output_stream(
         &self,
         samples: Arc<Vec<f32>>,
@@ -79,13 +68,17 @@ impl AudioPlayback {
             &self.config,
             move |data: &mut [f32], _: &_| {
                 for frame in data.chunks_mut(channels) {
-                    let sample = if sample_clock >= samples.len() {
-                        0.0 // Output silence
-                    } else {
+                    let sample_value = if sample_clock < samples.len() {
                         samples[sample_clock] * volume // Apply volume
+                    } else {
+                        0.0 // Output silence when samples are finished
                     };
-                    // Copy sample to all channels
-                    frame.iter_mut().for_each(|s| *s = sample);
+
+                    // Write the same sample to all channels
+                    for sample in frame.iter_mut() {
+                        *sample = sample_value;
+                    }
+
                     sample_clock += 1;
                 }
             },

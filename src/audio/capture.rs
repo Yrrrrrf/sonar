@@ -79,19 +79,3 @@ impl AudioCapture {
         result
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_default_device() -> Result<(), Box<dyn Error>> {
-//         let capture = AudioCapture::default();
-//         Ok(())
-//     }
-
-//     #[test]
-//     fn test_specific_device() -> Result<(), Box<dyn Error>> {
-//         Ok(()) // Skip test if no devices available
-//     }
-// }

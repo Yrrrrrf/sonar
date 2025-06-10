@@ -3,10 +3,9 @@ use bytes::{BufMut, Bytes, BytesMut};
 
 use dev_utils::{format::*, info, trace};
 
-use crate::stack::{Ipv4Address, MacAddress, PortAddress, Header};
+use crate::stack::{Header, Ipv4Address, MacAddress, PortAddress};
 
-use crate::stack::{Frame, Packet, Segment,};
-
+use crate::stack::{Frame, Packet, Segment};
 
 // // Frame Flags:
 // const F_FRAGMENT: u8 = 0x01; // Indicates frame is part of larger message
@@ -14,15 +13,11 @@ use crate::stack::{Frame, Packet, Segment,};
 // const F_CONTROL: u8 = 0x04; // Control frame (not data)
 // const F_RETRANSMIT: u8 = 0x08; // Frame is being retransmitted
 
-
-
-
 impl Frame {
     pub fn get_message(&self) -> &str {
         panic!("Not implemented")
     }
 }
-
 
 /// Enum representing the frame types, with frame-specific data embedded.
 #[derive(Debug, Clone, Copy)]
@@ -47,12 +42,8 @@ impl Default for FrameKind {
 const SEGMENT_SIZE: usize = 32;
 const PACKET_SIZE: usize = 4;
 
+impl Frame {}
 
-impl Frame {
-}
+impl Packet {}
 
-impl Packet {
-}
-
-impl Segment {
-}
+impl Segment {}

@@ -2,7 +2,6 @@
 #![allow(unused)]
 
 pub mod audio;
-pub mod codec;
 pub mod modem;
 pub mod stack;
 

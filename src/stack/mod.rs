@@ -5,8 +5,8 @@ use bytes::Bytes;
 mod datalink;
 pub use datalink::*;
 
-use std::fmt::{self, Display, Formatter};
 use dev_utils::format::*;
+use std::fmt::{self, Display, Formatter};
 
 /// A generic container for a pair of addresses.
 pub type AddressPair<A> = (A, A);
@@ -62,7 +62,6 @@ define_addresses! {
     PortAddress: u16, 80,
 }
 
-
 macro_rules! impl_iterator_trait {
     ($name:ident, $payload_field:ident, $payload_ty:ty) => {
         // * for item in layer_struct { ... }
@@ -83,7 +82,7 @@ macro_rules! impl_iterator_trait {
             fn into_iter(self) -> Self::IntoIter {
                 self.$payload_field.iter()
             }
-        }        
+        }
     };
 }
 
@@ -159,7 +158,7 @@ define_layer_struct! {
 pub trait ToBytes {
     /// Converts the structure to a byte representation
     fn to_bytes(&self) -> Vec<u8>;
-            
+
     /// Converts the structure to a byte representation
     /// and writes it to the provided buffer
     fn try_to_bytes(&self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
@@ -168,7 +167,6 @@ pub trait ToBytes {
         buffer[..len].copy_from_slice(&bytes);
         Ok(len)
     }
-
 }
 
 /// Trait for getting size information about a network layer structure
@@ -182,11 +180,10 @@ pub trait LayerSize {
 }
 
 pub trait LayerBuilder {
-    type Output;  // define the output type of the builder!
+    type Output; // define the output type of the builder!
     // this means that the build method will return a value of this type
     fn build(&self) -> Self::Output;
 }
-
 
 // todo: Implement the following modules
 

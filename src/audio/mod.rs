@@ -1,44 +1,39 @@
-use cpal::traits::{DeviceTrait, HostTrait};
-use std::{error::Error, time::Duration};
+// src/audio/mod.rs
 
+use cpal::traits::{DeviceTrait, HostTrait};
 use dev_utils::{format::*, read_input};
+use std::{error::Error, time::Duration};
 
 // * mod.rs
 pub mod capture;
 pub mod config;
-pub mod dev;
 pub mod playback;
 pub mod signal;
 
-pub fn list_audio_devices()
--> Result<(Vec<cpal::Device>, Vec<cpal::Device>), Box<dyn std::error::Error>> {
+pub fn list_audio_devices() -> Result<(), Box<dyn std::error::Error>> {
     let host = cpal::default_host();
 
-    // list the available devices
     println!("Input devices:");
-    for (i, device) in host.input_devices()?.enumerate() {
-        println!("{}: {}", i, device.name()?);
-    }
-    println!("Output devices:");
-    for (i, device) in host.output_devices()?.enumerate() {
+    let input_devices = host.input_devices()?;
+    for (i, device) in input_devices.enumerate() {
         println!("{}: {}", i, device.name()?);
     }
 
-    Ok((
-        host.input_devices()?
-            .filter(|d| d.default_input_config().is_ok())
-            .collect(),
-        host.output_devices()?
-            .filter(|d| d.default_output_config().is_ok())
-            .collect(),
-    ))
+    println!("Output devices:");
+    let output_devices = host.output_devices()?;
+    for (i, device) in output_devices.enumerate() {
+        println!("{}: {}", i, device.name()?);
+    }
+
+    Ok(())
 }
 
 pub fn select_device(input: bool) -> Result<cpal::Device, Box<dyn Error>> {
     let host = cpal::default_host();
-    let devices = match input {
-        true => host.input_devices()?,
-        false => host.output_devices()?,
+    let mut devices = if input {
+        host.input_devices()?
+    } else {
+        host.output_devices()?
     };
 
     println!(
@@ -51,32 +46,25 @@ pub fn select_device(input: bool) -> Result<cpal::Device, Box<dyn Error>> {
         .style(Style::Bold)
     );
 
-    let devices: Vec<_> = devices
-        .filter(|d| match input {
-            true => d.supported_input_configs().is_ok(),
-            false => d.supported_output_configs().is_ok(),
-        })
-        .collect();
-
-    for (idx, device) in devices.iter().enumerate() {
+    let device_list: Vec<_> = devices.collect();
+    for (idx, device) in device_list.iter().enumerate() {
         println!(
             "{}. {}",
             idx.to_string().color(GREEN),
-            device.name().unwrap().color(WHITE)
+            device.name().unwrap_or_default().color(WHITE)
         );
     }
 
     loop {
-        let input = read_input::<usize>(Some("Select device number: "))?;
-        if input < devices.len() {
-            return Ok(devices[input].clone());
+        let choice = read_input::<usize>(Some("Select device number: "))?;
+        if choice < device_list.len() {
+            return Ok(device_list[choice].clone());
         }
         println!("Invalid selection. Try again.");
     }
 }
 
 // ? FORMAT RELATED FUNCTIONS
-
 pub fn interpolate_color(value: f32, min: f32, max: f32) -> Color {
     let t = ((value - min) / (max - min)).clamp(0.0, 1.0);
 
@@ -120,18 +108,16 @@ pub fn format_time(duration: Duration) -> String {
 }
 
 pub fn create_gradient_meter(value: f32, width: usize, peak_pos: Option<usize>) -> String {
-    let meter_width = (value * width as f32 * 2.0) as usize;
-    let meter_width = meter_width.min(width);
+    let meter_width = (value * width as f32 * 2.0).min(width as f32) as usize;
     let mut meter = String::with_capacity(width * 3);
 
-    // Create gradient bar with peak indicator
     for i in 0..width {
         if i < meter_width {
             let segment_value = i as f32 / width as f32;
             let color = interpolate_color(segment_value, 0.0, 1.0);
             meter.push_str(&"█".color(color));
         } else if Some(i) == peak_pos {
-            meter.push_str(&"▌".color(WHITE).style(Style::Bold)); // Peak indicator
+            meter.push_str(&"╎".color(WHITE).style(Style::Bold)); // Peak indicator
         } else {
             meter.push(' ');
         }
