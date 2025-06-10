@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::f32::consts::PI;
 
-use super::{CodecTrait, SAMPLE_RATE};
+use super::{ModemTrait, SAMPLE_RATE};
 
-// FSK (Frequency-Shift Keying) encoder implementation
+// FSK (Frequency-Shift Keying) modem implementation
 #[derive(Debug, PartialEq)]
 pub struct FSK {
     sample_rate: u32,     // Sampling rate in Hz
@@ -60,8 +60,8 @@ impl FSK {
     }
 }
 
-impl CodecTrait for FSK {
-    fn encode(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
+impl ModemTrait for FSK {
+    fn modulate(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut signal = Vec::new();
         // Convert each byte to bits and generate corresponding sine waves
         for &byte in data {
@@ -76,7 +76,7 @@ impl CodecTrait for FSK {
         Ok(signal)
     }
 
-    fn decode(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn demodulate(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut decoded_data = Vec::new();
         let mut current_bits = Vec::new();
 
@@ -108,12 +108,12 @@ mod tests {
     #[test]
     fn test_fsk_encoding_decoding() {
         // * FSK::new(sample_rate, freq_0, freq_1, samples_per_bit)
-        let encoder: FSK = FSK::new(48_000, 1_200.0, 2_400.0, 480);
+        let modem: FSK = FSK::new(48_000, 1_200.0, 2_400.0, 480);
 
         let test_data = vec![0b10101010, 0b11001100]; // * (0xAA:170,  0xCC:204)
 
-        let enc = encoder.encode(&test_data).unwrap();
-        let dec = encoder.decode(&enc).unwrap();
+        let enc = modem.modulate(&test_data).unwrap();
+        let dec = modem.demodulate(&enc).unwrap();
 
         assert_eq!(test_data, dec, "Decoded data should match original data");
     }

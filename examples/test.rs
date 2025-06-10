@@ -10,9 +10,9 @@ use dev_utils::{app_dt, debug, dlog::*, error, info, trace, warn};
 use sonar::audio::{
     capture::AudioCapture, dev::AudioDev, playback::AudioPlayback, signal::SignalMonitor,
 };
-use sonar::codec::CodecTrait;
-use sonar::modem::FSK;
 use sonar::*;
+use sonar::modem::FSK;
+use sonar::modem::ModemTrait;
 
 const TEST_DATA: &[u8] = &[
     0xAA, 0xBB, 0xCC, 0xDD, // Test pattern
@@ -30,16 +30,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 // fn test_audio_loopback() -> Result<(), Box<dyn Error>> {
-//     // Create FSK CodecTrait with default settings
-//     let CodecTrait = Box::new(FSK::default());
-//     let CodecTrait_clone = Box::new(FSK::default());
+//     // Create FSK ModemTrait with default settings
+//     let ModemTrait = Box::new(FSK::default());
+//     let ModemTrait_clone = Box::new(FSK::default());
 
 //     // Initialize audio devices
 //     let capture = AudioCapture::new()?;
-//     let playback = AudioPlayback::new(CodecTrait_clone)?;
+//     let playback = AudioPlayback::new(ModemTrait_clone)?;
 
 //     // Create router
-//     let router = AudioRouter::new(capture, playback, CodecTrait)?;
+//     let router = AudioRouter::new(capture, playback, ModemTrait)?;
 
 //     // Create signal monitor
 //     let mut monitor = SignalMonitor::new(50, Box::new(FSK::default()));
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 //     // Monitor the signal for a short duration
 //     for _ in 0..10 {
-//         if let Some(decoded) = monitor.process_samples(&router.CodecTrait.encode(TEST_DATA)?) {
+//         if let Some(decoded) = monitor.process_samples(&router.ModemTrait.encode(TEST_DATA)?) {
 //             // println!("Decoded data: {:?}", decoded);
 //             assert_eq!(decoded, TEST_DATA.to_vec(), "Decoded data doesn't match sent data");
 //         }
@@ -105,7 +105,7 @@ fn test_signal_strength() -> Result<(), Box<dyn Error>> {
         // Send signal
         let stream = playback.transmit(s)?;
         // Monitor signal strength
-        let samples = playback.encoder.encode(s)?;
+        let samples = playback.modem.modulate(s)?;
         monitor.process_samples(&samples);
 
         thread::sleep(Duration::from_millis(250));
@@ -175,10 +175,10 @@ fn test_fsk_codec() {
 
     let data = b"Hello, World!";
 
-    match fsk.encode(data) {
+    match fsk.modulate(data) {
         Ok(encoded) => {
             debug!("Data encoded: {} samples", encoded.len());
-            match fsk.decode(&encoded) {
+            match fsk.demodulate(&encoded) {
                 Ok(decoded) => {
                     trace!("\tOriginal data: {:?}", data);
                     trace!("\tDecoded data:  {:?}", decoded);
@@ -196,9 +196,6 @@ fn test_fsk_codec() {
 }
 
 fn test_codec() {
-    use sonar::modem::FSK;
-    use sonar::codec::CodecTrait;
-
     info!("Main tester");
 
     let fsk = FSK::new(
@@ -210,8 +207,7 @@ fn test_codec() {
 
     // Encoding
     let data = b"Hello, World!";
-    // let encoded = fsk.encode(data)?;
-    let encoded = match fsk.encode(data) {
+    let encoded = match fsk.modulate(data) {
         Ok(encoded) => encoded,
         Err(e) => {
             error!("Error: {}", e);
@@ -221,7 +217,7 @@ fn test_codec() {
 
     // Decoding
     // let decoded = fsk.decode(&encoded)?;
-    let decoded = match fsk.decode(&encoded) {
+    let decoded = match fsk.demodulate(&encoded) {
         Ok(decoded) => decoded,
         Err(e) => {
             error!("Error: {}", e);

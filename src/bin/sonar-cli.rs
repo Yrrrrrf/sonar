@@ -102,12 +102,12 @@ fn transmit(
     let output_device =
         select_device_by_index(output_device_index, &output_devices, &default_output);
 
-    let encoder = Box::new(FSK::default());
-    let playback = AudioPlayback::new_with_device(output_device, encoder)?;
+    let modem = Box::new(FSK::default());
+    let playback = AudioPlayback::new_with_device(output_device, modem)?;
 
     let volume = volume.unwrap_or(1.0);
-    // Calculate transmission duration based on encoded sample count and sample rate.
-    let samples = playback.encoder.encode(message.as_bytes())?;
+    // Calculate transmission duration based on modulated sample count and sample rate.
+    let samples = playback.modem.modulate(message.as_bytes())?;
     let duration =
         Duration::from_secs_f32(samples.len() as f32 / playback.config.sample_rate.0 as f32);
     let stream = playback.transmit_with_volume(message.as_bytes(), volume)?;
@@ -128,8 +128,8 @@ fn listen(input_device_index: Option<usize>, _monitor: bool) -> Result<(), Box<d
     let input_device = select_device_by_index(input_device_index, &input_devices, &default_input);
 
     let capture = AudioCapture::new_with_device(input_device)?;
-    let decoder = Box::new(FSK::default());
-    let mut signal_monitor = SignalMonitor::new(48, decoder);
+    let modem = Box::new(FSK::default());
+    let mut signal_monitor = SignalMonitor::new(48, modem);
 
     signal_monitor.print_header();
     let _stream = capture.start_listening()?;

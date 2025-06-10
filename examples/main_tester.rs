@@ -81,10 +81,10 @@ fn define_dt(message_size: usize) -> Bytes {
     // If we need more data to reach the requested size, fill with random values
     if buffer.len() < message_size {
         let remaining = message_size - buffer.len();
-        let mut rng = rand::thread_rng(); // Fixed: use thread_rng() instead of rng()
+        let mut rng = rand::rng(); // Fixed: use thread_rng() instead of rng()
 
         for _ in 0..remaining {
-            buffer.put_u8(rng.gen_range(0..=255)); // Fixed: use gen_range instead of random_range
+            buffer.put_u8(rng.random_range(0..=255)); // Fixed: use gen_range instead of random_range
         }
     }
 

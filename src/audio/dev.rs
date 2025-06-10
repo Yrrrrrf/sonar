@@ -1,10 +1,3 @@
-// First, modify the Encoder trait in encoding/mod.rs
-pub trait Encoder: Send {
-    // Add Send requirement
-    fn encode(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>>;
-    fn decode(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>>;
-}
-
 // Then update the AudioDev implementation:
 use bytes::BytesMut;
 use cpal::Stream;

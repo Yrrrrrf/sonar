@@ -1,12 +1,13 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::{error::Error, sync::Arc};
 
-use crate::codec::CodecTrait;
+use crate::modem::ModemTrait;
+
 
 pub struct AudioPlayback {
     pub config: cpal::StreamConfig,   // Device configuration
     pub device: cpal::Device,         // The physical output device (speakers)
-    pub encoder: Box<dyn CodecTrait>, // The encoder instance for signal processing
+    pub modem: Box<dyn ModemTrait>, // The modem instance for signal processing
 }
 
 impl std::fmt::Debug for AudioPlayback {
@@ -20,30 +21,30 @@ impl std::fmt::Debug for AudioPlayback {
 }
 
 impl AudioPlayback {
-    /// Creates a new AudioPlayback with the default output device and encoder
-    pub fn new(encoder: Box<dyn CodecTrait>) -> Result<Self, Box<dyn Error>> {
+    /// Creates a new AudioPlayback with the default output device and modem
+    pub fn new(modem: Box<dyn ModemTrait>) -> Result<Self, Box<dyn Error>> {
         Self::new_with_device(
             cpal::default_host()
                 .default_output_device()
                 .ok_or("No output device found")?,
-            encoder,
+            modem,
         )
     }
 
-    /// Creates a new AudioPlayback with a specific output device and encoder
+    /// Creates a new AudioPlayback with a specific output device and modem
     pub fn new_with_device(
         device: cpal::Device,
-        encoder: Box<dyn CodecTrait>,
+        modem: Box<dyn ModemTrait>,
     ) -> Result<Self, Box<dyn Error>> {
         let config = device.default_output_config()?.config();
         Ok(Self {
             device,
             config,
-            encoder,
+            modem,
         })
     }
 
-    /// Send data through the encoder and play it with volume control
+    /// Send data through the modem and play it with volume control
     pub fn transmit_with_volume(
         &self,
         data: &[u8],
@@ -51,7 +52,7 @@ impl AudioPlayback {
     ) -> Result<cpal::Stream, Box<dyn Error>> {
         // Encode the data into audio samples
         let channels = self.config.channels as usize;
-        let samples = Arc::new(self.encoder.encode(data)?);
+        let samples = Arc::new(self.modem.modulate(data)?);
         let samples_clone = Arc::clone(&samples);
 
         let stream = self.build_output_stream(samples_clone, channels, volume)?;
@@ -60,7 +61,7 @@ impl AudioPlayback {
         Ok(stream)
     }
 
-    /// Send data through the encoder and play it (with default volume = 1.0)
+    /// Send data through the modem and play it (with default volume = 1.0)
     pub fn transmit(&self, data: &[u8]) -> Result<cpal::Stream, Box<dyn Error>> {
         self.transmit_with_volume(data, 1.0)
     }
@@ -94,57 +95,3 @@ impl AudioPlayback {
         Ok(stream)
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use crate::codec::FSK;
-
-//     use super::*;
-
-//     #[test]
-//     fn test_default_device() -> Result<(), Box<dyn Error>> {
-//         let encoder = Box::new(FSK::default());
-//         let playback = AudioPlayback::new(encoder)?;
-//         Ok(())
-//     }
-
-//     #[test]
-//     fn test_specific_device() -> Result<(), Box<dyn Error>> {
-//         let host = cpal::default_host();
-//         if let Some(device) = host.output_devices()?.next() {
-//             let encoder = Box::new(FSK::default());
-//             let playback = AudioPlayback::new_with_device(device, encoder)?;
-//             Ok(())
-//         } else {
-//             Ok(()) // Skip test if no devices available
-//         }
-//     }
-
-//     #[test]
-//     fn test_transmit_data() -> Result<(), Box<dyn Error>> {
-//         let encoder = Box::new(FSK::default());
-//         let playback = AudioPlayback::new(encoder)?;
-
-//         // Test data transmission
-//         let test_data = vec![0xAA, 0xBB, 0xCC]; // Test pattern
-//         let stream = playback.transmit(&test_data)?;
-//         std::thread::sleep(std::time::Duration::from_millis(500));
-//         Ok(())
-//     }
-
-//     #[test]
-//     fn test_volume_control() -> Result<(), Box<dyn Error>> {
-//         let encoder = Box::new(FSK::default());
-//         let playback = AudioPlayback::new(encoder)?;
-//         let test_data = vec![0xAA, 0xBB, 0xCC];
-
-//         // Test different volume levels
-//         let mut volume = 0.0;
-//         while volume <= 1.0 {
-//             let stream = playback.transmit_with_volume(&test_data, volume)?;
-//             std::thread::sleep(std::time::Duration::from_millis(100));
-//             volume += 0.1;
-//         }
-//         Ok(())
-//     }
-// }

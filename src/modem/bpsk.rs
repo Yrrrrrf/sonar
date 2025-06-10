@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::f32::consts::PI;
 
-use super::{CodecTrait, SAMPLE_RATE};
+use super::{ModemTrait, SAMPLE_RATE};
 
-/// BPSK (Binary Phase-Shift Keying) encoder/decoder implementation.
+/// BPSK (Binary Phase-Shift Keying) modem/modem implementation.
 ///
 /// In BPSK:
 /// - Bit 0 is represented by a sine wave with phase 0.
@@ -22,7 +22,7 @@ impl Default for BPSK {
 }
 
 impl BPSK {
-    /// Creates a new BPSK encoder/decoder with the given parameters.
+    /// Creates a new BPSK modem/modem with the given parameters.
     pub fn new(sample_rate: u32, carrier_freq: f32, samples_per_bit: u32) -> Self {
         Self {
             sample_rate,
@@ -60,11 +60,11 @@ impl BPSK {
     }
 }
 
-impl CodecTrait for BPSK {
+impl ModemTrait for BPSK {
     /// Encodes raw data into a BPSK modulated signal.
     ///
     /// Each bit in the input data is converted into a BPSK-modulated sine wave.
-    fn encode(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
+    fn modulate(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut signal = Vec::new();
         // Convert each byte into bits and generate the corresponding BPSK wave
         for &byte in data {
@@ -80,7 +80,7 @@ impl CodecTrait for BPSK {
     /// The signal is processed in chunks of `samples_per_bit` and a correlation with a reference
     /// sine wave (phase 0) is computed. A negative correlation implies a bit value of 1,
     /// while a positive correlation implies 0.
-    fn decode(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
+    fn demodulate(&self, samples: &[f32]) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut decoded_data = Vec::new();
         let mut current_bits = Vec::new();
 

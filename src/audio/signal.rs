@@ -2,8 +2,7 @@ use dev_utils::format::*;
 use std::time::Instant;
 
 use crate::{
-    audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color},
-    codec::CodecTrait,
+    audio::{create_gradient_meter, format_signal_value, format_time, interpolate_color}, modem::ModemTrait,
 };
 
 pub struct SignalMonitor {
@@ -12,18 +11,18 @@ pub struct SignalMonitor {
     samples_count: usize,
     last_peak_pos: Option<usize>,
     pub start_time: Instant,
-    decoder: Box<dyn CodecTrait>,
+    modem: Box<dyn ModemTrait>,
 }
 
 impl SignalMonitor {
-    pub fn new(display_width: usize, decoder: Box<dyn CodecTrait>) -> Self {
+    pub fn new(display_width: usize, modem: Box<dyn ModemTrait>) -> Self {
         Self {
             display_width,
             peak_value: 0.0,
             samples_count: 0,
             last_peak_pos: None,
             start_time: Instant::now(),
-            decoder,
+            modem,
         }
     }
 
@@ -46,7 +45,7 @@ impl SignalMonitor {
         let mut decoded_data = None;
 
         // Try to decode if we have enough samples
-        if let Ok(data) = self.decoder.decode(samples) {
+        if let Ok(data) = self.modem.demodulate(samples) {
             if !data.is_empty() {
                 decoded_data = Some(data);
             }
