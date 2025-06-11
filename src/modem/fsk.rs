@@ -14,7 +14,11 @@ pub struct FSK {
 
 impl Default for FSK {
     fn default() -> Self {
-        Self::new(SAMPLE_RATE, 1_200.0, 2_400.0, SAMPLE_RATE / 1_200)
+        const SAMPLE_RATE: u32 = 48_000;
+        const BAUD_RATE: u32 = 300; // SLOWED DOWN from 1200
+        const SAMPLES_PER_BIT: u32 = SAMPLE_RATE / BAUD_RATE; // NOW = 160 samples per bit
+
+        Self::new(SAMPLE_RATE, 1_200.0, 2_400.0, SAMPLES_PER_BIT)
     }
 }
 
