@@ -50,9 +50,31 @@ impl AudioPlayback {
         self.build_output_stream(samples_arc, channels, volume)
     }
 
-    /// Plays the given audio samples with default volume (1.0).
-    pub fn transmit(&self, samples: &[f32]) -> Result<cpal::Stream, Box<dyn Error>> {
-        self.transmit_with_volume(samples, 1.0)
+    // UPDATED METHOD: Now takes config as an argument.
+    pub fn transmit(
+        &self,
+        config: &cpal::StreamConfig,
+        samples: &[f32],
+    ) -> Result<cpal::Stream, Box<dyn Error>> {
+        let channels = config.channels as usize;
+        let samples_arc = Arc::new(samples.to_vec());
+        let mut sample_clock = 0;
+
+        let stream = self.device.build_output_stream(
+            config, // Use the provided config
+            move |data: &mut [f32], _: &_| {
+                for frame in data.chunks_mut(channels) {
+                    let sample_value = *samples_arc.get(sample_clock).unwrap_or(&0.0);
+                    for sample in frame.iter_mut() {
+                        *sample = sample_value;
+                    }
+                    sample_clock += 1;
+                }
+            },
+            |err| eprintln!("Error in output stream: {}", err),
+            None,
+        )?;
+        Ok(stream)
     }
 
     // Private helper method to build the cpal output stream.
