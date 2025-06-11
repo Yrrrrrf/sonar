@@ -35,19 +35,16 @@ where
 // In src/modem/mod.rs
 
 pub trait ModemTrait {
+    // * Encode: bits -> signal
     fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>>;
+    
+    // * Decode: signal -> bits (This is now less important for the new decoder)
     fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>>;
 
-    // --- NEW REQUIRED METHODS ---
-
-    /// Returns the number of audio samples used to represent a single bit.
-    fn samples_per_bit(&self) -> usize;
-
-    /// Analyzes a chunk of samples and returns the energy for the mark (1) and space (0) frequencies.
-    ///
-    /// # Returns
-    /// A tuple `(mark_energy, space_energy)`.
-    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32));
+    // NEW, ESSENTIAL METHOD for the FrameAnalyzer
+    /// Analyzes a small chunk of audio, returning the energy at the mark and space frequencies.
+    /// Returns (mark_energy, space_energy).
+    fn analyze_bit(&self, samples: &[f32]) -> Result<(f32, f32), Box<dyn Error>>;
 }
 
 // same as above but using some macro to reduce boilerplate...
@@ -84,6 +81,7 @@ macro_rules! impl_codec {
 }
 
 impl_codec!(
-    FSK, BPSK,
+    FSK, 
+    // BPSK,
     // QPSK,
 );

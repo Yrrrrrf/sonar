@@ -2,7 +2,7 @@
 
 use bytes::Bytes;
 
-mod datalink;
+pub mod datalink;
 pub use datalink::*;
 
 use dev_utils::format::*;

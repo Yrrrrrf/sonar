@@ -7,8 +7,8 @@ use super::{ModemTrait, SAMPLE_RATE};
 #[derive(Debug, PartialEq)]
 pub struct FSK {
     sample_rate: u32,     // Sampling rate in Hz
-    freq_0: f32,          // Frequency for bit 0 in Hz
-    freq_1: f32,          // Frequency for bit 1 in Hz
+    freq_0: f32,          // Frequency for bit 0 (space)
+    freq_1: f32,          // Frequency for bit 1 (mark)
     samples_per_bit: u32, // Number of samples per bit
 }
 
@@ -56,7 +56,7 @@ impl FSK {
             s1 = s0;
             s0 = 2.0 * cos_omega * s1 - s2 + sample;
         }
-        // Calculate energy
+        // Calculate energy (squared magnitude)
         let real = s0 - s1 * cos_omega;
         let imag = s1 * sin_omega;
 
@@ -64,50 +64,53 @@ impl FSK {
     }
 }
 
+// Implement the ModemTrait for FSK
 impl ModemTrait for FSK {
     fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut signal = Vec::new();
         // Generate corresponding sine waves for each bit
         for &bit in data {
             signal.extend(self.gen_wave(
-                if bit { self.freq_1 } else { self.freq_0 },
+                if bit { self.freq_1 } else { self.freq_0 }, // freq_1 is mark, freq_0 is space
                 self.samples_per_bit,
             ));
         }
-
         Ok(signal)
     }
 
+    /// (Legacy demodulation - no longer the primary method for the new SonarCodec)
     fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>> {
         let mut decoded_data = Vec::new();
-        let mut current_bits = Vec::new();
-
+        
         // Process samples in chunks of samples_per_bit
         for chunk in samples.chunks(self.samples_per_bit as usize) {
-            // Use Goertzel algorithm to detect which frequency is present
-            let energy_0 = self.correlate(chunk, self.freq_0);
-            let energy_1 = self.correlate(chunk, self.freq_1);
-
-            // The frequency with higher energy represents the bit
-            current_bits.push(energy_1 > energy_0);
-
-            // When we have 8 bits, convert them to a byte
-            if current_bits.len() == 8 {
-                decoded_data.push(super::bits_to_byte(&current_bits));
-                current_bits.clear();
-            }
+            let (mark_energy, space_energy) = self.analyze_bit(chunk)?;
+            decoded_data.push(mark_energy > space_energy);
         }
 
-        Ok(decoded_data.iter().map(|&b| b != 0).collect())
+        Ok(decoded_data)
     }
 
-    fn samples_per_bit(&self) -> usize {
-        self.samples_per_bit as usize
-    }
-
-    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32)) {
+    // ================== NEW IMPLEMENTATION ==================
+    /// Analyzes a chunk of audio, returning the energy at the mark and space frequencies.
+    ///
+    /// This is the core analysis function for the new confidence-based decoder.
+    /// It uses the Goertzel algorithm to efficiently measure the energy of the two
+    /// frequencies that represent our '1' (mark) and '0' (space) bits.
+    ///
+    /// # Arguments
+    /// * `samples` - A slice of f32 audio samples, typically one bit's worth.
+    ///
+    /// # Returns
+    /// A `Result` containing a tuple `(mark_energy, space_energy)`.
+    // ========================================================
+    fn analyze_bit(&self, samples: &[f32]) -> Result<(f32, f32), Box<dyn Error>> {
+        // Calculate the energy for the 'mark' frequency (bit '1')
         let mark_energy = self.correlate(samples, self.freq_1);
+
+        // Calculate the energy for the 'space' frequency (bit '0')
         let space_energy = self.correlate(samples, self.freq_0);
-        ((mark_energy, space_energy), (mark_energy, space_energy))
+
+        Ok((mark_energy, space_energy))
     }
 }

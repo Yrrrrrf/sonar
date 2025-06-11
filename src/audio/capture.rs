@@ -3,8 +3,8 @@ use std::error::Error;
 use std::sync::{Arc, Mutex};
 
 pub struct AudioCapture {
-    device: cpal::Device,              // The physical input device (microphone)
-    config: cpal::StreamConfig,        // Device configuration
+    pub device: cpal::Device,              // The physical input device (microphone)
+    pub config: cpal::StreamConfig,        // Device configuration
     pub samples: Arc<Mutex<Vec<f32>>>, // Buffer for captured audio data
 }
 

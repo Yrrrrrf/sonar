@@ -60,52 +60,52 @@ impl BPSK {
     }
 }
 
-impl ModemTrait for BPSK {
-    /// Encodes raw data into a BPSK modulated signal.
-    ///
-    /// Each bit in the input data is converted into a BPSK-modulated sine wave.
-    fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>> {
-        let mut signal = Vec::new();
-        // Generate the corresponding BPSK wave for each bit
-        for &bit in data {
-            signal.extend(self.gen_wave(bit));
-        }
-        Ok(signal)
-    }
+// impl ModemTrait for BPSK {
+//     /// Encodes raw data into a BPSK modulated signal.
+//     ///
+//     /// Each bit in the input data is converted into a BPSK-modulated sine wave.
+//     fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>> {
+//         let mut signal = Vec::new();
+//         // Generate the corresponding BPSK wave for each bit
+//         for &bit in data {
+//             signal.extend(self.gen_wave(bit));
+//         }
+//         Ok(signal)
+//     }
 
-    /// Decodes a BPSK modulated signal back into raw data.
-    ///
-    /// The signal is processed in chunks of `samples_per_bit` and a correlation with a reference
-    /// sine wave (phase 0) is computed. A negative correlation implies a bit value of 1,
-    /// while a positive correlation implies 0.
-    fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>> {
-        let mut decoded_data = Vec::new();
-        let mut current_bits = Vec::new();
+//     /// Decodes a BPSK modulated signal back into raw data.
+//     ///
+//     /// The signal is processed in chunks of `samples_per_bit` and a correlation with a reference
+//     /// sine wave (phase 0) is computed. A negative correlation implies a bit value of 1,
+//     /// while a positive correlation implies 0.
+//     fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>> {
+//         let mut decoded_data = Vec::new();
+//         let mut current_bits = Vec::new();
 
-        // Process the signal chunk by chunk (each chunk represents one bit)
-        for chunk in samples.chunks(self.samples_per_bit as usize) {
-            let correlation = self.correlate(chunk);
-            // Determine the bit: if correlation is negative, we treat it as bit 1.
-            current_bits.push(correlation < 0.0);
+//         // Process the signal chunk by chunk (each chunk represents one bit)
+//         for chunk in samples.chunks(self.samples_per_bit as usize) {
+//             let correlation = self.correlate(chunk);
+//             // Determine the bit: if correlation is negative, we treat it as bit 1.
+//             current_bits.push(correlation < 0.0);
 
-            // Once we have 8 bits, convert them into a byte.
-            if current_bits.len() == 8 {
-                decoded_data.push(super::bits_to_byte(&current_bits));
-                current_bits.clear();
-            }
-        }
-        Ok(decoded_data.iter().map(|&b| b != 0).collect())
-    }
+//             // Once we have 8 bits, convert them into a byte.
+//             if current_bits.len() == 8 {
+//                 decoded_data.push(super::bits_to_byte(&current_bits));
+//                 current_bits.clear();
+//             }
+//         }
+//         Ok(decoded_data.iter().map(|&b| b != 0).collect())
+//     }
 
-    // todo: Test this method
-    fn samples_per_bit(&self) -> usize {
-        self.samples_per_bit as usize
-    }
+//     // todo: Test this method
+//     fn samples_per_bit(&self) -> usize {
+//         self.samples_per_bit as usize
+//     }
 
-    // todo: Test this method
-    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32)) {
-        let mark_energy = self.correlate(samples);
-        let space_energy = self.correlate(&samples.iter().map(|&s| -s).collect::<Vec<_>>());
-        ((mark_energy, space_energy), (mark_energy, space_energy))
-    }
-}
+//     // todo: Test this method
+//     fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32)) {
+//         let mark_energy = self.correlate(samples);
+//         let space_energy = self.correlate(&samples.iter().map(|&s| -s).collect::<Vec<_>>());
+//         ((mark_energy, space_energy), (mark_energy, space_energy))
+//     }
+// }

@@ -1,13 +1,10 @@
 // C:\...\sonar\examples\loopback.rs
 
-#![allow(unused)]
-
 use std::error::Error;
-use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, StreamTrait};
 use dev_utils::{
     app_dt,
     dlog::*,
@@ -18,23 +15,29 @@ use dev_utils::{
 // Import our core library components
 use sonar::audio::{self, capture::AudioCapture, playback::AudioPlayback};
 use sonar::modem::fsk::FSK;
-use sonar::stack::{CodecTrait, SonarCodec};
+use sonar::stack::datalink::{CodecTrait, SonarCodec, SonarCodecConfig};
+
+// --- Constants for the new architecture ---
+const SAMPLE_RATE: u32 = 48000;
+const BAUD_RATE: u32 = 300;
+// This is the "squelch" control. Higher values require a clearer signal.
+// Good values are typically between 1.5 and 5.0.
+const CONFIDENCE_THRESHOLD: f32 = 2.0;
 
 fn main() -> Result<(), Box<dyn Error>> {
     app_dt!(file!());
-    set_max_level(Level::Info); // Start with Info for cleaner output
-    // set_max_level(Level::Debug); // Use Debug for more verbosity
+    set_max_level(Level::Trace); // Start with Info for a cleaner user experience
 
     // --- Role Selection ---
     println!(
         "{}",
-        "Sonar Two-Way Communication Test"
+        "Sonar Acoustic Modem Test"
             .style(Style::Bold)
             .color(dev_utils::format::YELLOW)
     );
     println!("Choose the role for this computer:");
-    println!("  1. Send a message");
-    println!("  2. Listen for a message");
+    println!("  1. Transmit a message (TX)");
+    println!("  2. Listen for a message (RX)");
 
     let choice = read_input::<u32>(Some("Enter your choice (1 or 2): "))?;
 
@@ -47,45 +50,57 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Handles the logic for the sending computer.
+/// Handles the logic for the transmitting computer.
 fn run_sender() -> Result<(), Box<dyn Error>> {
-    info!("Starting in SEND mode.");
+    info!("Starting in TRANSMIT mode.");
 
     // --- Device Selection ---
     let output_device = audio::select_device(false)?; // false for output
+    let output_config = output_device.default_output_config()?;
     info!("Selected output device: {}", output_device.name()?);
 
     // --- Codec and Audio Setup ---
-    let fsk_modem = Box::new(FSK::default());
-    let codec = SonarCodec::new(fsk_modem);
-    let playback = AudioPlayback::new_with_device(output_device)?;
+    // Ensure the modem and codec config use the same parameters
+    let fsk_modem = Box::new(FSK::new(
+        SAMPLE_RATE,
+        1200.0,
+        2400.0,
+        SAMPLE_RATE / BAUD_RATE,
+    ));
+    let codec_config = SonarCodecConfig {
+        sample_rate: SAMPLE_RATE,
+        baud_rate: BAUD_RATE,
+        confidence_threshold: CONFIDENCE_THRESHOLD, // Not used by sender, but good practice
+    };
+    let codec = SonarCodec::new(fsk_modem, codec_config);
+
+    // Ensure our playback device matches the config
+    let mut playback = AudioPlayback::new_with_device(output_device)?;
+    playback.config.sample_rate = cpal::SampleRate(SAMPLE_RATE);
+    playback.config.channels = output_config.channels();
 
     // --- Message Input ---
     let message = read_input::<String>(Some("Enter the message to send: "))?;
     info!("Preparing to send message: '{}'", message);
 
     // --- Encoding and Transmission ---
-    // 1. Datalink layer prepares the audio signal with leader/trailer tones and character frames.
-    let audio_samples = codec.encode(message)?;
+    let audio_samples = codec.encode(message.as_bytes())?;
     info!(
         "Message encoded into {} audio samples.",
-        audio_samples
-            .len()
-            .to_string()
-            .color(dev_utils::format::CYAN)
+        audio_samples.len().to_string().color(dev_utils::format::CYAN)
     );
 
     // Calculate approximate duration for user feedback
-    let duration_secs = audio_samples.len() as f32 / playback.config.sample_rate.0 as f32;
+    let duration_secs = audio_samples.len() as f32 / SAMPLE_RATE as f32;
     info!("Estimated transmission time: {:.2} seconds.", duration_secs);
 
-    // 2. Audio layer plays the prepared signal.
+    // Play the generated audio signal.
     let stream = playback.transmit(&audio_samples)?;
     stream.play()?;
 
     info!("{}", "Transmission in progress...".style(Style::Italic));
-    // Wait for the transmission to complete
-    std::thread::sleep(Duration::from_secs_f32(duration_secs + 0.5)); // Add a small buffer
+    // Wait for the transmission to complete, adding a small buffer
+    thread::sleep(Duration::from_secs_f32(duration_secs + 0.5));
 
     info!(
         "{}",
@@ -99,52 +114,80 @@ fn run_listener() -> Result<(), Box<dyn Error>> {
     info!("Starting in LISTEN mode.");
 
     // --- Device Selection ---
-    let input_device = audio::select_device(true)?;
+    let input_device = audio::select_device(true)?; // true for input
+    let input_config = input_device.default_input_config()?;
     info!("Selected input device: {}", input_device.name()?);
 
     // --- Codec and Audio Setup ---
-    let fsk_modem = Box::new(FSK::default());
-    let mut codec = SonarCodec::new(fsk_modem);
+    let fsk_modem = Box::new(FSK::new(
+        SAMPLE_RATE,
+        1200.0,
+        2400.0,
+        SAMPLE_RATE / BAUD_RATE,
+    ));
+    let codec_config = SonarCodecConfig {
+        sample_rate: SAMPLE_RATE,
+        baud_rate: BAUD_RATE,
+        confidence_threshold: CONFIDENCE_THRESHOLD,
+    };
+    let mut codec = SonarCodec::new(fsk_modem, codec_config);
 
-    let capture = AudioCapture::new_with_device(input_device)?;
+    // Ensure our capture device matches the config
+    let mut capture = AudioCapture::new_with_device(input_device)?; // <--- MAKE THIS MUTABLE
+    capture.config.sample_rate = cpal::SampleRate(SAMPLE_RATE);
+    capture.config.channels = input_config.channels();
 
     // --- Start Listening ---
     let stream = capture.start_listening()?;
     stream.play()?;
 
-    info!("Listening for incoming signals... Press Ctrl+C to stop.");
-    println!("{}", "--- MESSAGE START ---".style(Style::Bold).color(dev_utils::format::GREEN));
+    // ================== CORRECTED BLOCK ==================
+    // Query the config from the `capture` object itself.
+    info!(
+        "{}",
+        format!("Actual stream sample rate: {} Hz", capture.config.sample_rate.0)
+            .style(Style::Bold)
+            .color(dev_utils::format::MAGENTA)
+    );
+    if capture.config.sample_rate.0 != SAMPLE_RATE {
+        warn!(
+            "WARNING: Actual sample rate does not match configured rate of {} Hz!",
+            SAMPLE_RATE
+        );
+    }
+    // =====================================================
 
-    // The main listening loop
+    info!("Listening for incoming signals... Press Ctrl+C to stop.");
+    info!("Using confidence threshold: {}", CONFIDENCE_THRESHOLD);
+
+    // The main listening loop - now much simpler!
     loop {
         let samples = capture.get_samples();
         if samples.is_empty() {
-            thread::sleep(Duration::from_millis(50));
+            // Sleep briefly to avoid busy-waiting
+            thread::sleep(Duration::from_millis(10));
             continue;
         }
 
-        // Give samples to the Datalink layer to find a message.
-        // The new `decode` uses a sliding window and confidence scoring.
+        // Feed the captured audio samples to the decoder.
+        // The decoder will internally buffer and process them.
         match codec.decode(&samples) {
-            Ok(Some(payload)) => {
-                // `decode` can return multiple bytes at once if they are
-                // processed quickly from the buffer.
-                let message_chunk = String::from_utf8_lossy(&payload);
+            Ok(Some(bytes)) => {
+                // The decoder found one or more valid bytes!
+                let message_chunk = String::from_utf8_lossy(&bytes);
                 // Print without a newline to allow characters to appear as they are decoded.
-                print!("{}", message_chunk);
-                io::stdout().flush()?; // Ensure the character is displayed immediately.
+                print!("{}", message_chunk.color(dev_utils::format::GREEN));
+                // We need to flush stdout to make sure the characters appear immediately.
+                use std::io::Write;
+                std::io::stdout().flush()?;
             }
             Ok(None) => {
-                // No character with high enough confidence was found. This is normal
-                // during silence or noise. The loop will continue, processing more samples.
+                // No complete character found yet. This is normal.
+                // The codec is waiting for more audio or a clearer signal.
             }
             Err(e) => {
-                // An unrecoverable error occurred during demodulation or analysis.
-                warn!(
-                    "An error occurred during decoding: {}. Resetting decoder.",
-                    e
-                );
-                codec.reset_decoder();
+                // This would indicate a more serious, unrecoverable error in the modem.
+                warn!("An unrecoverable error occurred during decoding: {}", e);
             }
         }
     }
