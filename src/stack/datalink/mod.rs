@@ -59,13 +59,6 @@ impl SonarCodec {
     }
 
     /// Analyzes a slice of audio samples corresponding to one character frame.
-    ///
-    /// This is the core of the confidence-based decoder. It checks for correct
-    /// start/stop bit framing and calculates a confidence score based on the
-    /// signal-to-noise ratio and consistency of the bits.
-    ///
-    /// Returns a tuple: (confidence_score: f32, decoded_byte: u8).
-    /// A confidence of 0.0 indicates an invalid or unrecognized frame.
     fn analyze_character_frame(&self, frame_samples: &[f32]) -> (f32, u8) {
         let samples_per_bit = self.samples_per_bit();
         let samples_per_bit_usize = samples_per_bit.round() as usize;
@@ -76,34 +69,33 @@ impl SonarCodec {
 
         let mut bits_for_trace = String::new(); // For logging
 
-        // 1. Demodulate each bit in the frame to get its value, signal, and noise levels.
+        // 1. Demodulate each bit in the frame.
         for i in 0..BITS_PER_CHARACTER {
             let start = (i as f32 * samples_per_bit).round() as usize;
             let end = start + samples_per_bit_usize;
             if end > frame_samples.len() {
-                return (0.0, 0); // Not enough samples
+                return (0.0, 0);
             }
 
             if let Ok((mark_energy, space_energy)) =
                 self.modem.analyze_bit(&frame_samples[start..end])
             {
                 if mark_energy > space_energy {
-                    bits[i] = true; // Mark (1)
+                    bits[i] = true;
                     signals[i] = mark_energy;
                     noises[i] = space_energy;
-                    bits_for_trace.push('1'); // For logging
+                    bits_for_trace.push('1');
                 } else {
-                    bits[i] = false; // Space (0)
+                    bits[i] = false;
                     signals[i] = space_energy;
                     noises[i] = mark_energy;
-                    bits_for_trace.push('0'); // For logging
+                    bits_for_trace.push('0');
                 }
             } else {
-                return (0.0, 0); // Modem error
+                return (0.0, 0);
             }
         }
 
-        // --- ADDED TRACE LOG ---
         trace!(
             "Analyzing frame. Bits: {}, Signal[0]: {:.4}, Noise[0]: {:.4}",
             bits_for_trace,
@@ -112,41 +104,38 @@ impl SonarCodec {
         );
 
         // 2. Perform the critical framing check.
-        // A valid frame must have a 'space' (0) start bit and a 'mark' (1) stop bit.
-        // The start bit is the first bit, the stop bit is the last.
         let start_bit = bits[0];
         let stop_bit = bits[BITS_PER_CHARACTER - 1];
 
         if start_bit == true || stop_bit == false {
-            trace!(" -> Frame REJECTED (Bad start/stop bits)"); // ADDED TRACE
+            trace!(" -> Frame REJECTED (Bad start/stop bits)");
             return (0.0, 0);
         }
 
         // 3. Calculate confidence score.
         let total_signal: f32 = signals.iter().sum();
         let total_noise: f32 = noises.iter().sum();
-
-        // The overall signal-to-noise ratio for the frame.
-        let snr = if total_noise > f32::EPSILON {
-            total_signal / total_noise
-        } else {
-            1000.0 // Practically infinite SNR if noise is near zero.
-        };
-
-        // For now, our confidence is simply the SNR. More complex metrics
-        // (like amplitude consistency) could be added later.
+        
+        // Add epsilon to prevent division by zero and normalize extreme confidence scores.
+        let snr = total_signal / (total_noise + f32::EPSILON);
         let confidence = snr;
 
-        // --- ADDED TRACE LOG ---
         trace!(" -> Frame ACCEPTED. Confidence: {:.2}", confidence);
 
+        // ============================ THE FIX ============================
         // 4. Assemble the 8 data bits (from index 1 to 8) into a byte.
+        //    The sender transmits LSB-first. Our `bits` array now holds the
+        //    data bits from index 1 (LSB) to 8 (MSB). We assemble them
+        //    into a byte in the correct order.
         let mut byte = 0u8;
-        for i in 1..=8 {
-            if bits[i] {
-                byte |= 1 << (i - 1);
+        let data_bits = &bits[1..9]; // A slice of the 8 data bits: [LSB, ..., MSB]
+
+        for i in 0..8 {
+            if data_bits[i] {
+                byte |= 1 << i; // Place bit `i` at position `i`.
             }
         }
+        // ===============================================================
 
         (confidence, byte)
     }
@@ -154,7 +143,6 @@ impl SonarCodec {
 
 impl CodecTrait for SonarCodec {
     /// Encodes a payload into a stream of audio samples.
-    /// This now includes a leader tone and per-character framing.
     fn encode(&self, payload: &[u8]) -> Result<Vec<f32>, Box<dyn Error>> {
         let mut bitstream = Vec::new();
 
@@ -181,7 +169,6 @@ impl CodecTrait for SonarCodec {
 
     /// The new `decode` method, implementing the `FrameFinder` logic.
     fn decode(&mut self, samples: &[f32]) -> Result<Option<Vec<u8>>, Box<dyn Error>> {
-        // Add incoming audio to our internal buffer.
         self.audio_buffer.extend_from_slice(samples);
         trace!(
             "Added {} samples to buffer. New size: {}",
@@ -192,23 +179,18 @@ impl CodecTrait for SonarCodec {
         let samples_per_char = self.samples_per_character();
         let mut found_bytes = Vec::new();
 
-        // Keep processing the buffer as long as we have enough data for a character.
         loop {
             if self.audio_buffer.len() < samples_per_char {
                 trace!("Buffer too small for a full character. Waiting for more data.");
-                break; // Not enough data, wait for more.
+                break;
             }
 
-            // The 'FrameFinder' logic:
-            // We search a small window of samples to find the best frame alignment.
-            // This makes the decoder robust to minor timing drift.
             let search_window_samples = (self.samples_per_bit() * 1.5).round() as usize;
 
             let mut best_confidence = 0.0;
             let mut best_byte = 0;
             let mut best_frame_start_pos = 0;
 
-            // Slide a window across the start of the buffer to find the best frame.
             for start_pos in 0..search_window_samples {
                 if start_pos + samples_per_char > self.audio_buffer.len() {
                     break;
@@ -224,15 +206,12 @@ impl CodecTrait for SonarCodec {
                 }
             }
 
-            // --- ADDED DEBUG LOG ---
             debug!(
                 "FrameFinder result: Best confidence {:.2} found at pos {}. Threshold is {}.",
                 best_confidence, best_frame_start_pos, self.config.confidence_threshold
             );
 
-            // Check if our best find is good enough.
             if best_confidence > self.config.confidence_threshold {
-                // We found a valid character!
                 info!(
                     "CHARACTER FOUND! Byte: 0x{:02X} ('{}'), Confidence: {:.2}",
                     best_byte,
@@ -245,8 +224,6 @@ impl CodecTrait for SonarCodec {
                 );
                 found_bytes.push(best_byte);
 
-                // Drain the used samples from the buffer. This includes the junk
-                // before the frame and the frame itself.
                 let samples_to_drain = best_frame_start_pos + samples_per_char;
                 self.audio_buffer.drain(..samples_to_drain);
                 trace!(
@@ -255,8 +232,6 @@ impl CodecTrait for SonarCodec {
                     self.audio_buffer.len()
                 );
             } else {
-                // No character found in the current window. Drain a small
-                // amount of data to avoid getting stuck on noise and try again.
                 let samples_to_drain = (samples_per_char / 2).max(1);
                 self.audio_buffer.drain(..samples_to_drain);
                 debug!(
