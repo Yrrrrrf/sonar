@@ -100,4 +100,14 @@ impl ModemTrait for FSK {
 
         Ok(decoded_data.iter().map(|&b| b != 0).collect())
     }
+
+    fn samples_per_bit(&self) -> usize {
+        self.samples_per_bit as usize
+    }
+
+    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32)) {
+        let mark_energy = self.correlate(samples, self.freq_1);
+        let space_energy = self.correlate(samples, self.freq_0);
+        ((mark_energy, space_energy), (mark_energy, space_energy))
+    }
 }

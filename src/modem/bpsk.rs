@@ -96,4 +96,16 @@ impl ModemTrait for BPSK {
         }
         Ok(decoded_data.iter().map(|&b| b != 0).collect())
     }
+
+    // todo: Test this method
+    fn samples_per_bit(&self) -> usize {
+        self.samples_per_bit as usize
+    }
+
+    // todo: Test this method
+    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32)) {
+        let mark_energy = self.correlate(samples);
+        let space_energy = self.correlate(&samples.iter().map(|&s| -s).collect::<Vec<_>>());
+        ((mark_energy, space_energy), (mark_energy, space_energy))
+    }
 }

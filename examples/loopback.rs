@@ -1,4 +1,4 @@
-// C:\...\sonar\examples\loopback_test.rs
+// C:\...\sonar\examples\loopback.rs
 
 #![allow(unused)]
 
@@ -16,15 +16,14 @@ use dev_utils::{
 };
 
 // Import our core library components
-use sonar::audio::{self, capture::AudioCapture, playback::AudioPlayback, signal::SignalMonitor};
-use sonar::modem::{ModemTrait, fsk::FSK};
-use sonar::stack::SonarCodec;
-use sonar::stack::{CodecTrait, DecoderState};
+use sonar::audio::{self, capture::AudioCapture, playback::AudioPlayback};
+use sonar::modem::fsk::FSK;
+use sonar::stack::{CodecTrait, SonarCodec};
 
 fn main() -> Result<(), Box<dyn Error>> {
     app_dt!(file!());
-    // set_max_level(Level::Info); // Start with Info, can be changed to Debug for more verbosity
-    set_max_level(Level::Debug); // Start with Info, can be changed to Debug for more verbosity
+    set_max_level(Level::Info); // Start with Info for cleaner output
+    // set_max_level(Level::Debug); // Use Debug for more verbosity
 
     // --- Role Selection ---
     println!(
@@ -66,7 +65,7 @@ fn run_sender() -> Result<(), Box<dyn Error>> {
     info!("Preparing to send message: '{}'", message);
 
     // --- Encoding and Transmission ---
-    // 1. Datalink layer prepares the audio signal.
+    // 1. Datalink layer prepares the audio signal with leader/trailer tones and character frames.
     let audio_samples = codec.encode(message)?;
     info!(
         "Message encoded into {} audio samples.",
@@ -108,19 +107,13 @@ fn run_listener() -> Result<(), Box<dyn Error>> {
     let mut codec = SonarCodec::new(fsk_modem);
 
     let capture = AudioCapture::new_with_device(input_device)?;
-    // Monitor is disabled for clarity, but you can re-enable it.
-    // let mut monitor = SignalMonitor::new(50);
 
     // --- Start Listening ---
     let stream = capture.start_listening()?;
     stream.play()?;
 
     info!("Listening for incoming signals... Press Ctrl+C to stop.");
-
-    // --- Watchdog Variables ---
-    // If the buffer grows beyond this many bits while trying to read a payload,
-    // we'll assume the frame was lost and reset. 8000 bits = 1 KB.
-    const STUCK_BUFFER_THRESHOLD: usize = 8000;
+    println!("{}", "--- MESSAGE START ---".style(Style::Bold).color(dev_utils::format::GREEN));
 
     // The main listening loop
     loop {
@@ -130,45 +123,28 @@ fn run_listener() -> Result<(), Box<dyn Error>> {
             continue;
         }
 
-        // You can re-enable the monitor here if you wish.
-        // monitor.process_samples(&samples);
-        // io::stdout().flush()?;
-
         // Give samples to the Datalink layer to find a message.
+        // The new `decode` uses a sliding window and confidence scoring.
         match codec.decode(&samples) {
             Ok(Some(payload)) => {
-                let message = String::from_utf8_lossy(&payload);
-                println!();
-                info!(
-                    "{}",
-                    "--- MESSAGE RECEIVED ---"
-                        .style(Style::Bold)
-                        .color(dev_utils::format::GREEN)
-                );
-                println!("{}", message);
-                println!();
+                // `decode` can return multiple bytes at once if they are
+                // processed quickly from the buffer.
+                let message_chunk = String::from_utf8_lossy(&payload);
+                // Print without a newline to allow characters to appear as they are decoded.
+                print!("{}", message_chunk);
+                io::stdout().flush()?; // Ensure the character is displayed immediately.
             }
             Ok(None) => {
-                // No complete frame found yet, this is normal.
-                // Now we add the watchdog logic.
-                let (current_state, buffer_size) = codec.get_decoder_status();
-
-                if current_state == DecoderState::ReadingPayload
-                    && buffer_size > STUCK_BUFFER_THRESHOLD
-                {
-                    warn!(
-                        "Decoder seems stuck with a large buffer ({} bits). Frame likely lost. Resetting decoder.",
-                        buffer_size
-                    );
-                    codec.reset_decoder(); // We need to add this method!
-                }
+                // No character with high enough confidence was found. This is normal
+                // during silence or noise. The loop will continue, processing more samples.
             }
             Err(e) => {
+                // An unrecoverable error occurred during demodulation or analysis.
                 warn!(
-                    "A frame was detected but could not be decoded: {}. Resetting decoder.",
+                    "An error occurred during decoding: {}. Resetting decoder.",
                     e
                 );
-                codec.reset_decoder(); // Also reset on errors.
+                codec.reset_decoder();
             }
         }
     }

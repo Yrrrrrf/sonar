@@ -32,11 +32,22 @@ where
         .fold(0u8, |acc, &bit| (acc << 1) | if bit.into() { 1 } else { 0 })
 }
 
+// In src/modem/mod.rs
+
 pub trait ModemTrait {
-    // * Encode: bits -> signal
     fn modulate(&self, data: &[bool]) -> Result<Vec<f32>, Box<dyn Error>>;
-    // * Decode: signal -> bits
     fn demodulate(&self, samples: &[f32]) -> Result<Vec<bool>, Box<dyn Error>>;
+
+    // --- NEW REQUIRED METHODS ---
+
+    /// Returns the number of audio samples used to represent a single bit.
+    fn samples_per_bit(&self) -> usize;
+
+    /// Analyzes a chunk of samples and returns the energy for the mark (1) and space (0) frequencies.
+    ///
+    /// # Returns
+    /// A tuple `(mark_energy, space_energy)`.
+    fn get_bit_metrics(&self, samples: &[f32]) -> ((f32, f32), (f32, f32));
 }
 
 // same as above but using some macro to reduce boilerplate...
